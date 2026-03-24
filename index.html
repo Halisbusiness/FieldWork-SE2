@@ -260,8 +260,8 @@ select.inp{
 
 /* ── MODAL — no dvh, use % instead ──────────────────────── */
 .modal-ov{
-  position:fixed;inset:0;top:0;left:0;right:0;bottom:0;/* inset fallback */
-  background:rgba(0,0,0,.85);z-index:300;
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,.82);z-index:300;
   display:-webkit-flex;display:flex;
   -webkit-align-items:flex-end;align-items:flex-end;
   -webkit-justify-content:center;justify-content:center;
@@ -270,17 +270,17 @@ select.inp{
 .modal-ov.open{opacity:1;pointer-events:all}
 .modal-sh{
   background:var(--s1);border-radius:20px 20px 0 0;
-  width:100%;max-width:430px;
-  padding:18px 18px calc(var(--sab) + 20px);
+  width:100%;max-width:375px;
+  padding:18px 18px calc(var(--sab) + 22px);
   -webkit-transform:translateY(100%);transform:translateY(100%);
   -webkit-transition:-webkit-transform .3s ease;transition:transform .3s ease;
-  max-height:88vh;/* vh not dvh for compat */
+  max-height:88vh;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
 }
 .modal-ov.open .modal-sh{-webkit-transform:translateY(0);transform:translateY(0)}
 .modal-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 18px}
-.modal-title{font-family:'Syne',sans-serif;font-size:19px;font-weight:700;margin-bottom:4px}
-.modal-sub{font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.5}
+.modal-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:4px;padding-left:2px}
+.modal-sub{font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5;padding-left:2px}
 
 /* ── CHIPS ───────────────────────────────────────────────── */
 .chip-row{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;gap:8px;margin-bottom:14px}
@@ -291,8 +291,8 @@ select.inp{
 .chip:active{opacity:.7}
 
 /* ── COLOR PICKER ────────────────────────────────────────── */
-.color-row{display:-webkit-flex;display:flex;gap:10px;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin-bottom:14px}
-.color-dot{width:32px;height:32px;border-radius:50%;cursor:pointer;border:3px solid transparent}
+.color-row{display:-webkit-flex;display:flex;gap:8px;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin-bottom:14px}
+.color-dot{width:30px;height:30px;border-radius:50%;cursor:pointer;border:3px solid transparent;-webkit-flex-shrink:0;flex-shrink:0}
 .color-dot.sel{border-color:var(--text);-webkit-transform:scale(1.15);transform:scale(1.15)}
 
 /* ── DIVIDER ─────────────────────────────────────────────── */
@@ -702,55 +702,70 @@ function speakText(text){
   if(!ttsSettings.enabled) return;
   stopSpeech();
   var selectedLang=ttsSettings.lang||'tr';
-  var langCode=TTS_LANGS[selectedLang]?TTS_LANGS[selectedLang].code:'tr-TR';
+  var langCode=(TTS_LANGS[selectedLang]&&TTS_LANGS[selectedLang].code)||'tr-TR';
 
   if(selectedLang==='tr'){
-    // Türkçe: direkt oku
-    browserSpeak(text, langCode);
+    // Türkçe: direkt oku, çeviri yok
+    browserSpeak(text,'tr-TR');
   } else {
-    // Diğer diller: önce AI ile çevir, sonra o dilde oku
-    translateAndSpeak(text, selectedLang, langCode);
+    // Yabancı dil: önce AI ile çevir, sonra o dilde oku
+    translateAndSpeak(text,selectedLang,langCode);
   }
 }
 
-function browserSpeak(text, langCode){
+function browserSpeak(text,langCode){
   if(!window.speechSynthesis){showToast('Ses desteklenmiyor');return;}
-  var utt=new SpeechSynthesisUtterance(text);
-  utt.lang=langCode;
-  utt.rate=0.88;
-  utt.pitch=1;
-  // Voices may load async on iOS — wait if empty
-  var voices=window.speechSynthesis.getVoices();
-  var match=voices.find(function(v){return v.lang.startsWith(langCode.split('-')[0])});
-  if(match) utt.voice=match;
-  currentUtterance=utt;
-  window.speechSynthesis.speak(utt);
+  // iOS: voices async yüklenir, kısa gecikme gerekebilir
+  var trySpeak=function(){
+    var utt=new SpeechSynthesisUtterance(text);
+    utt.lang=langCode;
+    utt.rate=0.88;
+    utt.pitch=1;
+    var voices=window.speechSynthesis.getVoices();
+    var langPrefix=langCode.split('-')[0];
+    var exact=voices.find(function(v){return v.lang===langCode});
+    var partial=voices.find(function(v){return v.lang.startsWith(langPrefix)});
+    if(exact) utt.voice=exact;
+    else if(partial) utt.voice=partial;
+    currentUtterance=utt;
+    window.speechSynthesis.speak(utt);
+  };
+  if(window.speechSynthesis.getVoices().length===0){
+    window.speechSynthesis.onvoiceschanged=function(){
+      window.speechSynthesis.onvoiceschanged=null;
+      trySpeak();
+    };
+    // iOS bazen onvoiceschanged tetiklemez, fallback:
+    setTimeout(trySpeak,500);
+  } else {
+    trySpeak();
+  }
 }
 
-async function translateAndSpeak(text, selectedLang, langCode){
-  var toastEl=document.getElementById('toast');
-  showToast('⏳ ' + TTS_LANGS[selectedLang].label + '\'ye çevriliyor...');
+async function translateAndSpeak(text,selectedLang,langCode){
+  showToast('⏳ Çevriliyor...');
+  var langNames={en:'English',ru:'Russian',uk:'Ukrainian',fr:'French',de:'German',ar:'Arabic'};
+  var targetName=langNames[selectedLang]||'English';
   try{
-    var langNames={en:'English',ru:'Russian',uk:'Ukrainian',fr:'French',de:'German',ar:'Arabic'};
-    var targetLangName=langNames[selectedLang]||selectedLang;
     var resp=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
-        max_tokens:300,
-        system:'You are a translator. Translate the given Turkish text to '+targetLangName+'. Return ONLY the translated text with no explanation, no quotes, nothing else.',
+        max_tokens:400,
+        system:'You are a translator. Translate the given Turkish text to '+targetName+'. Return ONLY the translated text, no quotes, no explanation.',
         messages:[{role:'user',content:text}]
       })
     });
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
     var d=await resp.json();
-    var translated=(d.content&&d.content[0]&&d.content[0].text)||text;
-    translated=translated.trim();
-    browserSpeak(translated, langCode);
+    var translated=((d.content&&d.content[0]&&d.content[0].text)||text).trim();
+    showToast('✓ '+TTS_LANGS[selectedLang].label+' — okunuyor');
+    browserSpeak(translated,langCode);
   }catch(e){
-    // Fallback: try to speak original with target accent
-    showToast('Çeviri başarısız — orijinal okunuyor');
-    browserSpeak(text, langCode);
+    showToast('⚠️ Çeviri başarısız');
+    // Yine de Türkçe metni hedef dil aksanıyla okumayı dene
+    browserSpeak(text,langCode);
   }
 }
 
@@ -970,7 +985,7 @@ function respCardHTML(r){
   var ans=Object.values(r.answers||{}).filter(function(a){return a!==null&&a!==undefined&&String(a).trim()}).length;
   var total=r.qIds?r.qIds.length:(proj.questions?proj.questions.length:0);
   var pct=total?Math.round(ans/total*100):0;
-  var dateStr=new Date(r.date).toLocaleDateString('tr-TR',{day:'numeric',month:'short'});
+  var dateStr=new Date(r.date).toLocaleDateString('tr-TR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
   var init=(r.profile&&r.profile.note?r.profile.note:'?').charAt(0).toUpperCase();
   var note=esc(r.profile&&r.profile.note?r.profile.note:'İsimsiz');
   var nat=esc(r.profile&&r.profile.nationality?r.profile.nationality:'');
@@ -1578,7 +1593,7 @@ function renderRespDetail(id,editing){
   var el=document.getElementById('sc-detail');
   var clr='var(--accent)';
   var prof=resp.profile||{};
-  var dateStr=new Date(resp.date).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'});
+  var dateStr=new Date(resp.date).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
   var qIds=resp.qIds||proj.questions.map(function(q){return q.id});
   var ans=Object.values(resp.answers||{}).filter(function(a){return a!==null&&a!==undefined&&String(a).trim()}).length;
 
@@ -1825,24 +1840,32 @@ async function aiPick(respId){
     var q=proj.questions.find(function(q){return q.id===e[0]});
     return 'S: '+(q?q.text:e[0])+'\nC: '+e[1];
   }).join('\n\n');
-  if(!filled){el.innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">Cevap bulunamadı</div>';return;}
+  if(!filled){el.innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">Cevaplanmış soru bulunamadı</div>';return;}
   try{
-    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',max_tokens:1000,
-      system:'Saha araştırması verisi analiz et. En çarpıcı cevabı seç. SADECE JSON: {"q":"soru","a":"cevap","caption":"instagram caption (emoji+hashtag dahil)","why":"seçme nedeni (1 cümle)"}',
-      messages:[{role:'user',content:'Proje: '+proj.name+'\nKişi: '+((resp.profile&&resp.profile.note)||'')+' '+((resp.profile&&resp.profile.age)||'')+' '+((resp.profile&&resp.profile.nationality)||'')+'\n\n'+filled}]
-    })});
+    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:800,
+        system:'Saha araştırması verisi analiz et. En çarpıcı, düşündürücü cevabı seç. SADECE JSON döndür: {"q":"soru metni","a":"cevap metni","caption":"instagram caption (emoji+hashtag)","why":"seçme nedeni kısa"}',
+        messages:[{role:'user',content:'Proje: '+proj.name+'\nKişi: '+((resp.profile&&resp.profile.note)||'')+' '+((resp.profile&&resp.profile.age)||'')+' '+((resp.profile&&resp.profile.nationality)||'')+'\n\n'+filled}]
+      })
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
     var d=await r.json();
-    var parsed=JSON.parse((d.content&&d.content[0]&&d.content[0].text||'{}').replace(/```json|```/g,'').trim());
-    el.innerHTML='<div class="ai-box"><div style="font-size:11px;color:var(--text3);margin-bottom:6px">🤖 '+esc(parsed.why||'')+'</div>'
-      +'<div style="font-size:12px;color:var(--text2);margin-bottom:4px;font-style:italic">"'+esc(parsed.q)+'"</div>'
-      +'<div style="font-family:\'Syne\',sans-serif;font-size:15px;color:var(--text);margin-bottom:12px;line-height:1.5">"'+esc(parsed.a)+'"</div>'
+    var raw=(d.content&&d.content[0]&&d.content[0].text)||'{}';
+    var parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    el.innerHTML='<div class="ai-box">'
+      +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px">🤖 '+esc(parsed.why||'')+'</div>'
+      +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px;font-style:italic">'+esc(parsed.q)+'</div>'
+      +'<div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:12px;line-height:1.5">"'+esc(parsed.a)+'"</div>'
       +'<div class="divl"></div>'
-      +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px">Instagram Caption:</div>'
+      +'<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase">📸 Caption</div>'
       +'<div style="font-size:13px;line-height:1.7;color:var(--text);background:var(--bg);padding:10px;border-radius:8px;white-space:pre-wrap;word-break:break-word" id="ai-cap">'+esc(parsed.caption)+'</div>'
       +'<button class="btn btn-g btn-sm" style="margin-top:8px" onclick="copyEl(\'ai-cap\')">📋 Kopyala</button>'
       +'</div>';
-  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">Hata. Tekrar deneyin.</div>';}
+  }catch(e){
+    el.innerHTML='<div style="color:var(--red);font-size:13px;padding:10px;background:var(--red-dim);border-radius:8px">⚠️ '+esc(e.message||'Bilinmeyen hata')+'<br><span style="font-size:11px;color:var(--text2)">İnternet bağlantınızı kontrol edin.</span></div>';
+  }
 }
 
 async function aiSummary(respId){
@@ -1855,22 +1878,30 @@ async function aiSummary(respId){
     var q=proj.questions.find(function(q){return q.id===e[0]});
     return 'S: '+(q?q.text:e[0])+'\nC: '+e[1];
   }).join('\n\n');
-  if(!filled){el.innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">Cevap bulunamadı</div>';return;}
+  if(!filled){el.innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">Cevaplanmış soru bulunamadı</div>';return;}
   try{
-    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',max_tokens:1000,
-      system:'Saha araştırması cevaplarını analiz et. SADECE JSON: {"summary":"kişinin görüşlerini özetleyen 3-4 cümle","caption":"instagram post metni (emoji+hashtag dahil)"}',
-      messages:[{role:'user',content:'Proje: '+proj.name+'\nKişi: '+((resp.profile&&resp.profile.note)||'')+'\n\n'+filled}]
-    })});
+    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:800,
+        system:'Saha araştırması cevaplarını analiz et. SADECE JSON döndür: {"summary":"kişinin görüşleri ve felsefi profili 3-4 cümle","caption":"instagram post metni (emoji+hashtag)"}',
+        messages:[{role:'user',content:'Proje: '+proj.name+'\nKişi: '+((resp.profile&&resp.profile.note)||'')+' '+((resp.profile&&resp.profile.age)||'')+' '+((resp.profile&&resp.profile.nationality)||'')+'\n\n'+filled}]
+      })
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
     var d=await r.json();
-    var parsed=JSON.parse((d.content&&d.content[0]&&d.content[0].text||'{}').replace(/```json|```/g,'').trim());
-    el.innerHTML='<div class="ai-box"><div style="font-size:13px;line-height:1.7;color:var(--text);margin-bottom:12px">'+esc(parsed.summary)+'</div>'
+    var raw=(d.content&&d.content[0]&&d.content[0].text)||'{}';
+    var parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    el.innerHTML='<div class="ai-box">'
+      +'<div style="font-size:13px;line-height:1.7;color:var(--text);margin-bottom:12px">'+esc(parsed.summary)+'</div>'
       +'<div class="divl"></div>'
-      +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px">Instagram Post:</div>'
+      +'<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase">📸 Instagram Post</div>'
       +'<div style="font-size:13px;line-height:1.7;color:var(--text);background:var(--bg);padding:10px;border-radius:8px;white-space:pre-wrap;word-break:break-word" id="ai-sum-cap">'+esc(parsed.caption)+'</div>'
       +'<button class="btn btn-g btn-sm" style="margin-top:8px" onclick="copyEl(\'ai-sum-cap\')">📋 Kopyala</button>'
       +'</div>';
-  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">Hata.</div>';}
+  }catch(e){
+    el.innerHTML='<div style="color:var(--red);font-size:13px;padding:10px;background:var(--red-dim);border-radius:8px">⚠️ '+esc(e.message||'Bilinmeyen hata')+'<br><span style="font-size:11px;color:var(--text2)">İnternet bağlantınızı kontrol edin.</span></div>';
+  }
 }
 
 function manualQuote(respId){
