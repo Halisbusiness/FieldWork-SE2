@@ -63,19 +63,18 @@ body{height:100%;height:-webkit-fill-available;background:var(--bg);color:var(--
 
 /* ── TOPBAR ──────────────────────────────────────────────── */
 .topbar{
-  padding:calc(var(--sat) + 14px) calc(18px + var(--sar)) 12px calc(18px + var(--sal));
+  padding:calc(var(--sat) + 12px) 15px 10px;
   display:-webkit-flex;display:flex;
   -webkit-align-items:center;align-items:center;
   -webkit-justify-content:space-between;justify-content:space-between;
   -webkit-flex-shrink:0;flex-shrink:0;
   border-bottom:1px solid var(--border);background:var(--bg);
 }
-.topbar-logo{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;letter-spacing:-.02em;color:var(--text)}
+.topbar-logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-.02em;color:var(--text)}
 .topbar-logo span{color:var(--accent)}
-.icon-pill{background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:8px 14px;
-  /* min 44px tap target */
-  min-height:44px;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;
-  font-size:14px;font-weight:600;color:var(--text2);cursor:pointer;}
+.icon-pill{background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:7px 12px;
+  min-height:36px;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;
+  font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;}
 .icon-pill:active{opacity:.6}
 
 /* ── SCREENS ─────────────────────────────────────────────── */
@@ -239,14 +238,13 @@ select.inp{
 .sf-nav{
   position:fixed;bottom:0;left:50%;
   -webkit-transform:translateX(-50%);transform:translateX(-50%);
-  width:100%;max-width:430px;
-  /* Extra padding: nav bar height ~56px + safe area + breathing room */
-  padding:10px 18px calc(var(--sab) + 64px);
+  width:375px;max-width:375px;
+  padding:10px 15px calc(var(--sab) + 70px);
   background:var(--bg);border-top:1px solid var(--border);
-  display:-webkit-flex;display:flex;gap:8px;z-index:150;
+  display:-webkit-flex;display:flex;gap:8px;z-index:50;
 }
-/* sf-body needs enough bottom padding to clear sf-nav */
-.sf-body{padding:16px 18px calc(140px + var(--sab))}
+/* sf-body bottom clearance = sf-nav total height (~110px) + nav bar (~56px) */
+.sf-body{padding:12px 15px calc(170px + var(--sab))}
 .back-bar{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;
   gap:8px;padding:14px 18px;border-bottom:1px solid var(--border);
   cursor:pointer;color:var(--accent);font-size:15px;font-weight:600;
@@ -388,7 +386,6 @@ html,body{width:375px;overflow-x:hidden}
 .hero{padding:16px 15px;margin-bottom:14px}
 /* Tighter padding */
 .pad{padding:14px 15px calc(84px + var(--sab))}
-.sf-body{padding:12px 15px calc(130px + var(--sab))}
 /* Smaller nav */
 .nv{min-width:52px;padding:3px 8px}
 .nv .ni{font-size:20px}
@@ -404,12 +401,8 @@ html,body{width:375px;overflow-x:hidden}
 .q-text{font-size:15px}
 /* Tighter modal */
 .modal-sh{padding:14px 15px calc(var(--sab)+16px)}
-/* SF nav — SE 2 safe area is 0 at bottom so less padding needed */
-.sf-nav{padding:10px 15px calc(var(--sab)+58px)}
 /* Stats mini smaller */
 .stat-mini-n{font-size:18px}
-/* Topbar tighter */
-.topbar{padding:calc(var(--sat)+10px) 15px 10px}
 
 
 .screen::-webkit-scrollbar{width:0;display:none}
@@ -691,67 +684,74 @@ function setLang(l){
 // TTS — Text To Speech
 // ================================================================
 var TTS_LANGS={
-  tr:{label:'Türkçe',   code:'tr-TR', voiceHint:'tr'},
-  en:{label:'İngilizce',code:'en-US', voiceHint:'en'},
-  ru:{label:'Rusça',    code:'ru-RU', voiceHint:'ru'},
-  uk:{label:'Ukraynaca',code:'uk-UA', voiceHint:'uk'},
-  fr:{label:'Fransızca',code:'fr-FR', voiceHint:'fr'},
-  de:{label:'Almanca',  code:'de-DE', voiceHint:'de'},
-  ar:{label:'Arapça',   code:'ar-SA', voiceHint:'ar'},
+  tr:{label:'Türkçe',   code:'tr-TR'},
+  en:{label:'İngilizce',code:'en-US'},
+  ru:{label:'Rusça',    code:'ru-RU'},
+  uk:{label:'Ukraynaca',code:'uk-UA'},
+  fr:{label:'Fransızca',code:'fr-FR'},
+  de:{label:'Almanca',  code:'de-DE'},
+  ar:{label:'Arapça',   code:'ar-SA'},
 };
 var ttsSettings;
-try{ttsSettings=JSON.parse(localStorage.getItem('fw_tts')||'null')||{engine:'browser',lang:'tr',enabled:true}}
-catch(e){ttsSettings={engine:'browser',lang:'tr',enabled:true}}
-
+try{ttsSettings=JSON.parse(localStorage.getItem('fw_tts')||'null')||{lang:'tr',enabled:true}}
+catch(e){ttsSettings={lang:'tr',enabled:true}}
 function saveTTS(){try{localStorage.setItem('fw_tts',JSON.stringify(ttsSettings))}catch(e){}}
-
 var currentUtterance=null;
 
-function speakText(text,langCode){
+function speakText(text){
   if(!ttsSettings.enabled) return;
   stopSpeech();
-  var lang=langCode||TTS_LANGS[ttsSettings.lang]?.code||'tr-TR';
+  var selectedLang=ttsSettings.lang||'tr';
+  var langCode=TTS_LANGS[selectedLang]?TTS_LANGS[selectedLang].code:'tr-TR';
 
-  if(ttsSettings.engine==='ai'){
-    speakAI(text,lang);
-    return;
+  if(selectedLang==='tr'){
+    // Türkçe: direkt oku
+    browserSpeak(text, langCode);
+  } else {
+    // Diğer diller: önce AI ile çevir, sonra o dilde oku
+    translateAndSpeak(text, selectedLang, langCode);
   }
-  // Browser Web Speech API
-  if(!window.speechSynthesis){showToast(T('Ses desteklenmiyor','Speech not supported'));return;}
+}
+
+function browserSpeak(text, langCode){
+  if(!window.speechSynthesis){showToast('Ses desteklenmiyor');return;}
   var utt=new SpeechSynthesisUtterance(text);
-  utt.lang=lang;
-  utt.rate=0.92;
+  utt.lang=langCode;
+  utt.rate=0.88;
   utt.pitch=1;
-  // Try to find a matching voice
+  // Voices may load async on iOS — wait if empty
   var voices=window.speechSynthesis.getVoices();
-  var match=voices.find(function(v){return v.lang.startsWith(lang.split('-')[0])});
+  var match=voices.find(function(v){return v.lang.startsWith(langCode.split('-')[0])});
   if(match) utt.voice=match;
   currentUtterance=utt;
   window.speechSynthesis.speak(utt);
 }
 
-async function speakAI(text,lang){
-  showToast(T('Ses üretiliyor...','Generating audio...'));
+async function translateAndSpeak(text, selectedLang, langCode){
+  var toastEl=document.getElementById('toast');
+  showToast('⏳ ' + TTS_LANGS[selectedLang].label + '\'ye çevriliyor...');
   try{
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    var langNames={en:'English',ru:'Russian',uk:'Ukrainian',fr:'French',de:'German',ar:'Arabic'};
+    var targetLangName=langNames[selectedLang]||selectedLang;
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:200,
-        messages:[{role:'user',content:'Translate this text to the language with code "'+lang+'" and return ONLY the translated text, nothing else: '+text}]
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:300,
+        system:'You are a translator. Translate the given Turkish text to '+targetLangName+'. Return ONLY the translated text with no explanation, no quotes, nothing else.',
+        messages:[{role:'user',content:text}]
       })
     });
     var d=await resp.json();
     var translated=(d.content&&d.content[0]&&d.content[0].text)||text;
-    // Use browser TTS with translated text
-    if(window.speechSynthesis){
-      var utt=new SpeechSynthesisUtterance(translated);
-      utt.lang=lang;utt.rate=0.9;
-      var voices=window.speechSynthesis.getVoices();
-      var match=voices.find(function(v){return v.lang.startsWith(lang.split('-')[0])});
-      if(match) utt.voice=match;
-      currentUtterance=utt;
-      window.speechSynthesis.speak(utt);
-    }
-  }catch(e){showToast(T('Ses hatası','Audio error'));}
+    translated=translated.trim();
+    browserSpeak(translated, langCode);
+  }catch(e){
+    // Fallback: try to speak original with target accent
+    showToast('Çeviri başarısız — orijinal okunuyor');
+    browserSpeak(text, langCode);
+  }
 }
 
 function stopSpeech(){
@@ -794,7 +794,6 @@ else if(mq&&mq.addListener){mq.addListener(function(){if(themeSettings.mode==='s
 applyTheme();
 
 function setTTSLang(l){ttsSettings.lang=l;saveTTS();renderSettings();}
-function setTTSEngine(e){ttsSettings.engine=e;saveTTS();renderSettings();}
 
 function setAccent(id){themeSettings.accent=id;applyTheme();renderSettings();}
 function setMode(m){themeSettings.mode=m;applyTheme();renderSettings();}
@@ -837,19 +836,9 @@ function renderSettings(){
 
   // TTS section
   var curTTSLang=ttsSettings.lang||'tr';
-  var curEngine=ttsSettings.engine||'browser';
   var ttsLangOpts=Object.entries(TTS_LANGS).map(function(e){
     var sel=curTTSLang===e[0];
     return '<div onclick="setTTSLang(\''+e[0]+'\')" style="padding:9px 12px;min-height:40px;border-radius:8px;border:1.5px solid '+(sel?'var(--accent)':'var(--border)')+';background:'+(sel?'var(--accent-dim)':'var(--s2)')+';cursor:pointer;font-size:13px;font-weight:600;color:'+(sel?'var(--accent)':'var(--text2)')+'">'+e[1].label+'</div>';
-  }).join('');
-  var ttsEngineHTML=['browser','ai'].map(function(eng){
-    var sel=curEngine===eng;
-    var lbl=eng==='browser'?T('Tarayıcı Sesi (Offline)','Browser Voice (Offline)'):T('AI Çeviri + Ses','AI Translate + Voice');
-    var sub=eng==='browser'?T('Hızlı, internet gerekmez','Fast, no internet needed'):T('Önce çevirir, sonra okur','Translates first, then reads');
-    return '<div onclick="setTTSEngine(\''+eng+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-sm);border:2px solid '+(sel?'var(--accent)':'var(--border)')+';background:'+(sel?'var(--accent-dim)':'var(--s2)')+';cursor:pointer;margin-bottom:8px;">'
-      +'<div style="flex:1"><div style="font-weight:600;font-size:13px;color:'+(sel?'var(--accent)':'var(--text)')+'">'+lbl+'</div><div style="font-size:11px;color:var(--text2)">'+sub+'</div></div>'
-      +(sel?'<span style="color:var(--accent)">✓</span>':'')
-      +'</div>';
   }).join('');
 
   document.getElementById('sc-settings').innerHTML='<div class="pad">'
@@ -869,12 +858,12 @@ function renderSettings(){
     +'<div onclick="ttsSettings.enabled=!ttsSettings.enabled;saveTTS();renderSettings()" style="width:44px;height:26px;border-radius:13px;background:'+(ttsSettings.enabled?'var(--accent)':'var(--border)')+';position:relative;cursor:pointer;transition:.2s">'
     +'<div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:'+(ttsSettings.enabled?'21px':'3px')+';transition:.2s"></div></div>'
     +'</div>'
-    +(ttsSettings.enabled?''+'<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">'+T('Okuma Dili','Reading Language')+'</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px">'+ttsLangOpts+'</div>'
-    +'<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">'+T('Motor','Engine')+'</div>'
-    +ttsEngineHTML
-    +'<button class="btn btn-s btn-sm" onclick="speakText(\''+T('Merhaba, bu bir test.','Hello, this is a test.')+'\')" style="margin-top:4px">🔊 '+T('Test Et','Test')+'</button>'
-    :'<div style="font-size:13px;color:var(--text3);text-align:center;padding:10px 0">'+T('Kapalı','Disabled')+'</div>')
+    +(ttsSettings.enabled
+      ?'<div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5">'+T('TR seçiliyse soruyu direkt okur. Diğer dillerde önce çevirir sonra okur.','TR reads directly. Other languages translate first then read.')+'</div>'
+      +'<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">'+T('Hedef Dil','Target Language')+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px">'+ttsLangOpts+'</div>'
+      +'<button class="btn btn-s btn-sm" onclick="speakText(\''+T('Merhaba, bu bir deneme sorusudur. Beni duyuyor musunuz?','Hello, this is a test question. Can you hear me?')+'\')" style="margin-top:2px">🔊 '+T('Test Et','Test Voice')+'</button>'
+      :'<div style="font-size:13px;color:var(--text3);text-align:center;padding:10px 0">'+T('Kapalı — Anket sırasında ses butonu gizlenir.','Disabled — voice button hidden during surveys.')+'</div>')
     +'</div>'
 
     // Accent
@@ -1416,17 +1405,22 @@ function renderSurveyStep(){
   var existing=surveyState.answers[qId];
 
   var ansUI='';
+  var existingNote=surveyState.notes&&surveyState.notes[qId]||'';
   if(q.type==='rating'){
     var val=existing||0;
     ansUI='<div class="star-row" id="star-row">'
       +[1,2,3,4,5].map(function(i){return '<div class="star'+(i<=val?' lit':'')+'" onclick="setRating('+i+')" id="star-'+i+'">★</div>'}).join('')
-      +'</div>';
+      +'</div>'
+      +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">📝 '+T('Not (isteğe bağlı)','Note (optional)')+'</div>'
+      +'<textarea class="ans-area" id="ans-note" style="min-height:60px" placeholder="'+T('Açık uçlu cevap veya not...','Open-ended answer or note...')+'">'+esc(existingNote)+'</textarea></div>';
   } else if(q.type==='mcq'){
     ansUI='<div class="mcq-opts">'+(q.options||[]).map(function(opt){
       return '<div class="mcq-opt'+(existing===opt?' sel':'')+'" onclick="selectMCQ(this,\''+esc(opt)+'\',\''+safeId(qId)+'\')">'+esc(opt)+'</div>';
-    }).join('')+'</div>';
+    }).join('')+'</div>'
+      +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">📝 '+T('Not (isteğe bağlı)','Note (optional)')+'</div>'
+      +'<textarea class="ans-area" id="ans-note" style="min-height:60px" placeholder="'+T('Açık uçlu cevap veya not...','Open-ended answer or note...')+'">'+esc(existingNote)+'</textarea></div>';
   } else {
-    ansUI='<textarea class="ans-area" id="ans-text" placeholder="Cevabı buraya yazın...">'+esc(existing||'')+'</textarea>';
+    ansUI='<textarea class="ans-area" id="ans-text" placeholder="'+T('Cevabı buraya yazın...','Write the answer here...')+'">'+esc(existing||'')+'</textarea>';
   }
 
   el.innerHTML='<div class="sf-header">'
@@ -1491,6 +1485,14 @@ function surveyNext(){
     var ta=document.getElementById('ans-text');
     var ans=ta?ta.value.trim():'';
     if(ans) surveyState.answers[qId]=ans;
+  }
+  // Save note for MCQ and rating
+  if(q&&(q.type==='mcq'||q.type==='rating')){
+    var noteEl=document.getElementById('ans-note');
+    var note=noteEl?noteEl.value.trim():'';
+    if(!surveyState.notes) surveyState.notes={};
+    if(note) surveyState.notes[qId]=note;
+    else delete surveyState.notes[qId];
   }
   advanceStep();
 }
