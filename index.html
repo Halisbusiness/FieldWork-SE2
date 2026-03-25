@@ -379,29 +379,33 @@ select.inp{
 /* ── iPhone SE 2 OVERRIDES (375×667) ────────────────────── */
 html,body{width:375px;overflow-x:hidden}
 #app{max-width:375px;width:375px}
-/* Tighter typography */
+/* Typography */
 .sec-title{font-size:19px}
 .hero-title{font-size:20px}
 .hero-sub{font-size:12px;margin-bottom:14px}
-.hero{padding:16px 15px;margin-bottom:14px}
-/* Tighter padding */
-.pad{padding:14px 15px calc(84px + var(--sab))}
-/* Smaller nav */
+.hero{padding:16px 16px;margin-bottom:14px}
+/* Padding — 16px yatay minimum */
+.pad{padding:16px 16px calc(88px + var(--sab))}
+.sf-body{padding:14px 16px calc(170px + var(--sab))}
+/* Nav */
 .nv{min-width:52px;padding:3px 8px}
 .nv .ni{font-size:20px}
 .nv .nl{font-size:9px}
-/* Smaller buttons */
+/* Buttons */
 .btn{font-size:14px;padding:11px 14px;min-height:42px}
-.btn-sm{padding:8px 11px;font-size:12px;min-height:36px}
-/* Smaller inputs */
+.btn-sm{padding:8px 12px;font-size:12px;min-height:36px}
+/* Inputs */
 .inp{font-size:16px;padding:10px 12px;min-height:42px}
-/* Smaller cards */
-.card{padding:13px}
+/* Cards */
+.card{padding:14px 14px}
 .q-card{padding:15px 14px}
 .q-text{font-size:15px}
-/* Tighter modal */
-.modal-sh{padding:14px 15px calc(var(--sab)+16px)}
-/* Stats mini smaller */
+/* Modal — 18px her iki yanda, asla sıfır değil */
+.modal-sh{
+  max-width:375px;
+  padding:18px 18px calc(var(--sab)+20px) !important;
+}
+/* Stats */
 .stat-mini-n{font-size:18px}
 
 
@@ -681,100 +685,6 @@ function setLang(l){
 }
 
 // ================================================================
-// TTS — Text To Speech
-// ================================================================
-var TTS_LANGS={
-  tr:{label:'Türkçe',   code:'tr-TR'},
-  en:{label:'İngilizce',code:'en-US'},
-  ru:{label:'Rusça',    code:'ru-RU'},
-  uk:{label:'Ukraynaca',code:'uk-UA'},
-  fr:{label:'Fransızca',code:'fr-FR'},
-  de:{label:'Almanca',  code:'de-DE'},
-  ar:{label:'Arapça',   code:'ar-SA'},
-};
-var ttsSettings;
-try{ttsSettings=JSON.parse(localStorage.getItem('fw_tts')||'null')||{lang:'tr',enabled:true}}
-catch(e){ttsSettings={lang:'tr',enabled:true}}
-function saveTTS(){try{localStorage.setItem('fw_tts',JSON.stringify(ttsSettings))}catch(e){}}
-var currentUtterance=null;
-
-function speakText(text){
-  if(!ttsSettings.enabled) return;
-  stopSpeech();
-  var selectedLang=ttsSettings.lang||'tr';
-  var langCode=(TTS_LANGS[selectedLang]&&TTS_LANGS[selectedLang].code)||'tr-TR';
-
-  if(selectedLang==='tr'){
-    // Türkçe: direkt oku, çeviri yok
-    browserSpeak(text,'tr-TR');
-  } else {
-    // Yabancı dil: önce AI ile çevir, sonra o dilde oku
-    translateAndSpeak(text,selectedLang,langCode);
-  }
-}
-
-function browserSpeak(text,langCode){
-  if(!window.speechSynthesis){showToast('Ses desteklenmiyor');return;}
-  // iOS: voices async yüklenir, kısa gecikme gerekebilir
-  var trySpeak=function(){
-    var utt=new SpeechSynthesisUtterance(text);
-    utt.lang=langCode;
-    utt.rate=0.88;
-    utt.pitch=1;
-    var voices=window.speechSynthesis.getVoices();
-    var langPrefix=langCode.split('-')[0];
-    var exact=voices.find(function(v){return v.lang===langCode});
-    var partial=voices.find(function(v){return v.lang.startsWith(langPrefix)});
-    if(exact) utt.voice=exact;
-    else if(partial) utt.voice=partial;
-    currentUtterance=utt;
-    window.speechSynthesis.speak(utt);
-  };
-  if(window.speechSynthesis.getVoices().length===0){
-    window.speechSynthesis.onvoiceschanged=function(){
-      window.speechSynthesis.onvoiceschanged=null;
-      trySpeak();
-    };
-    // iOS bazen onvoiceschanged tetiklemez, fallback:
-    setTimeout(trySpeak,500);
-  } else {
-    trySpeak();
-  }
-}
-
-async function translateAndSpeak(text,selectedLang,langCode){
-  showToast('⏳ Çevriliyor...');
-  var langNames={en:'English',ru:'Russian',uk:'Ukrainian',fr:'French',de:'German',ar:'Arabic'};
-  var targetName=langNames[selectedLang]||'English';
-  try{
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:400,
-        system:'You are a translator. Translate the given Turkish text to '+targetName+'. Return ONLY the translated text, no quotes, no explanation.',
-        messages:[{role:'user',content:text}]
-      })
-    });
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    var d=await resp.json();
-    var translated=((d.content&&d.content[0]&&d.content[0].text)||text).trim();
-    showToast('✓ '+TTS_LANGS[selectedLang].label+' — okunuyor');
-    browserSpeak(translated,langCode);
-  }catch(e){
-    showToast('⚠️ Çeviri başarısız');
-    // Yine de Türkçe metni hedef dil aksanıyla okumayı dene
-    browserSpeak(text,langCode);
-  }
-}
-
-function stopSpeech(){
-  if(window.speechSynthesis) window.speechSynthesis.cancel();
-  currentUtterance=null;
-}
-
-// ================================================================
 // THEME SYSTEM
 // ================================================================
 var ACCENT_THEMES=[
@@ -807,8 +717,6 @@ function applyTheme(){
 if(mq&&mq.addEventListener){mq.addEventListener('change',function(){if(themeSettings.mode==='system')applyTheme();})}
 else if(mq&&mq.addListener){mq.addListener(function(){if(themeSettings.mode==='system')applyTheme();})}
 applyTheme();
-
-function setTTSLang(l){ttsSettings.lang=l;saveTTS();renderSettings();}
 
 function setAccent(id){themeSettings.accent=id;applyTheme();renderSettings();}
 function setMode(m){themeSettings.mode=m;applyTheme();renderSettings();}
@@ -849,36 +757,14 @@ function renderSettings(){
     return '<div onclick="setLang(\''+l+'\')" style="flex:1;padding:12px;text-align:center;border-radius:var(--r-sm);border:2px solid '+(sel?'var(--accent)':'var(--border)')+';background:'+(sel?'var(--accent-dim)':'var(--s2)')+';cursor:pointer;font-weight:600;font-size:14px;color:'+(sel?'var(--accent)':'var(--text2)')+'">'+labels[l]+'</div>';
   }).join('');
 
-  // TTS section
-  var curTTSLang=ttsSettings.lang||'tr';
-  var ttsLangOpts=Object.entries(TTS_LANGS).map(function(e){
-    var sel=curTTSLang===e[0];
-    return '<div onclick="setTTSLang(\''+e[0]+'\')" style="padding:9px 12px;min-height:40px;border-radius:8px;border:1.5px solid '+(sel?'var(--accent)':'var(--border)')+';background:'+(sel?'var(--accent-dim)':'var(--s2)')+';cursor:pointer;font-size:13px;font-weight:600;color:'+(sel?'var(--accent)':'var(--text2)')+'">'+e[1].label+'</div>';
-  }).join('');
-
   document.getElementById('sc-settings').innerHTML='<div class="pad">'
     +'<div class="sec-title">'+T('Ayarlar','Settings')+'</div>'
-    +'<div class="sec-sub">'+T('Uygulama görünümünü ve davranışını kişiselleştir','Customize the app appearance and behavior')+'</div>'
+    +'<div class="sec-sub">'+T('Görünümü kişiselleştir','Customize appearance')+'</div>'
 
     // Lang
     +'<div class="card" style="margin-bottom:14px">'
     +'<div style="font-weight:700;font-size:15px;margin-bottom:12px">🌐 '+T('Uygulama Dili','App Language')+'</div>'
     +'<div style="display:flex;gap:10px">'+langHTML+'</div>'
-    +'</div>'
-
-    // TTS
-    +'<div class="card" style="margin-bottom:14px">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
-    +'<div style="font-weight:700;font-size:15px">🔊 '+T('Sesli Soru Okuma','Voice Question Reading')+'</div>'
-    +'<div onclick="ttsSettings.enabled=!ttsSettings.enabled;saveTTS();renderSettings()" style="width:44px;height:26px;border-radius:13px;background:'+(ttsSettings.enabled?'var(--accent)':'var(--border)')+';position:relative;cursor:pointer;transition:.2s">'
-    +'<div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:'+(ttsSettings.enabled?'21px':'3px')+';transition:.2s"></div></div>'
-    +'</div>'
-    +(ttsSettings.enabled
-      ?'<div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5">'+T('TR seçiliyse soruyu direkt okur. Diğer dillerde önce çevirir sonra okur.','TR reads directly. Other languages translate first then read.')+'</div>'
-      +'<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">'+T('Hedef Dil','Target Language')+'</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px">'+ttsLangOpts+'</div>'
-      +'<button class="btn btn-s btn-sm" onclick="speakText(\''+T('Merhaba, bu bir deneme sorusudur. Beni duyuyor musunuz?','Hello, this is a test question. Can you hear me?')+'\')" style="margin-top:2px">🔊 '+T('Test Et','Test Voice')+'</button>'
-      :'<div style="font-size:13px;color:var(--text3);text-align:center;padding:10px 0">'+T('Kapalı — Anket sırasında ses butonu gizlenir.','Disabled — voice button hidden during surveys.')+'</div>')
     +'</div>'
 
     // Accent
@@ -952,17 +838,18 @@ function openProject(id){
 // ================================================================
 // HOME
 // ================================================================
-var homeShowAll=false;
+var homeShownCount=3;
 function renderHome(){
   var total=db.responses.length;
   var todayStr=new Date().toDateString();
   var today=db.responses.filter(function(r){return new Date(r.date).toDateString()===todayStr}).length;
   var allRecent=db.responses.slice().reverse();
-  var shown=homeShowAll?allRecent:allRecent.slice(0,3);
+  var shown=allRecent.slice(0,homeShownCount);
   var recentHtml=shown.map(function(r){return respCardHTML(r)}).join('');
-  var moreBtn=(allRecent.length>3&&!homeShowAll)
-    ?'<button class="btn btn-g" style="margin-top:4px" onclick="homeShowAll=true;renderHome()">'+T('Daha Fazla Göster','Show More')+' ('+allRecent.length+')</button>'
-    :(homeShowAll&&allRecent.length>3?'<button class="btn btn-g" style="margin-top:4px" onclick="homeShowAll=false;renderHome()">'+T('Daha Az Göster','Show Less')+'</button>':'');
+  var remaining=allRecent.length-homeShownCount;
+  var moreBtn=remaining>0
+    ?'<button class="btn btn-g" style="margin-top:6px" onclick="homeShownCount+=5;renderHome()">'+T('5 Tane Daha Göster','Show 5 More')+' ('+remaining+' '+T('kaldı','left')+')</button>'
+    :(homeShownCount>3?'<button class="btn btn-g" style="margin-top:6px" onclick="homeShownCount=3;renderHome()">'+T('Daha Az Göster','Show Less')+'</button>':'');
   document.getElementById('sc-home').innerHTML='<div class="pad">'
     +'<div class="hero"><div class="hero-eyebrow">fieldwork · '+T('saha araştırması','field research')+'</div>'
     +'<div class="hero-title">'+T('Her soru<br>bir keşif.','Every question<br>a discovery.')+'</div>'
@@ -1444,10 +1331,7 @@ function renderSurveyStep(){
     +'</div>'
     +'<div class="sf-body">'
     +'<div class="q-card">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-    +'<div class="q-type-label" style="color:'+qclr+';margin-bottom:0">'+(QTL[q.type]||T('Yazılı','Text'))+'</div>'
-    +(ttsSettings.enabled?'<button onclick="speakText(\''+q.text.replace(/'/g,"\\'")+'\')" style="background:var(--accent-dim);border:1px solid var(--accent);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;min-height:32px">🔊 '+TTS_LANGS[ttsSettings.lang].label+'</button>':'')
-    +'</div>'
+    +'<div class="q-type-label" style="color:'+qclr+';margin-bottom:8px">'+(QTL[q.type]||T('Yazılı','Text'))+'</div>'
     +'<div class="q-text">'+esc(q.text)+'</div>'
     +(q.subtext?'<div class="q-text-sub">'+esc(q.subtext)+'</div>':'')
     +ansUI
