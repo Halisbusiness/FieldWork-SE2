@@ -1,4 +1,4 @@
-,,<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
@@ -549,6 +549,15 @@ html,body{width:375px;overflow-x:hidden}
         <label class="il" style="display:block;margin-bottom:8px">Sorular</label>
         <div id="custom-q-list"></div>
       </div>
+      <div class="ig">
+        <label class="il">👥 Kaç Kişiyle?</label>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+          <button onclick="changePersonCount(-1)" style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border);background:var(--s2);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">−</button>
+          <div id="person-count-display" style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:var(--accent);min-width:32px;text-align:center">1</div>
+          <button onclick="changePersonCount(1)" style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border);background:var(--s2);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
+        </div>
+        <div id="person-labels-area"></div>
+      </div>
       <div class="btn-row" style="margin-top:8px">
         <button class="btn btn-g" onclick="cm('start')">İptal</button>
         <button class="btn btn-p" onclick="launchSurvey()">Başlat →</button>
@@ -590,9 +599,16 @@ html,body{width:375px;overflow-x:hidden}
     <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title">📥 Eski Veriyi Aktar</div>
-      <div class="modal-sub">Felsefi Anket uygulamasından indirdiğin JSON dosyasını seç. Veriler otomatik dönüştürülür.</div>
-      <div style="background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--r-sm);padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6;color:var(--accent)">
-        ⚠️ Mevcut veriler silinmez — eski veriler yeni projeye eklenir.
+      <div class="modal-sub">Felsefi Anket uygulamasından indirdiğin JSON dosyasını seç.</div>
+      <div style="background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--r-sm);padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.6;color:var(--accent)">
+        ℹ️ Çoklu kişili anketler her kişi için ayrı kayıt oluşturur.
+      </div>
+      <div class="ig">
+        <label class="il">Import Modu</label>
+        <div class="chip-row">
+          <div class="chip on" id="import-mode-add" onclick="this.className='chip on';document.getElementById('import-mode-fresh').className='chip'">➕ Ekle</div>
+          <div class="chip" id="import-mode-fresh" onclick="this.className='chip on';document.getElementById('import-mode-add').className='chip'">🔄 Temizle & Yeniden Aktar</div>
+        </div>
       </div>
       <input type="file" id="old-import-input" accept=".json" style="display:none" onchange="processOldImport(event)">
       <button class="btn btn-p" onclick="document.getElementById('old-import-input').click()">📂 JSON Dosyası Seç</button>
@@ -890,12 +906,13 @@ function respCardHTML(r){
   var init=(r.profile&&r.profile.note?r.profile.note:'?').charAt(0).toUpperCase();
   var note=esc(r.profile&&r.profile.note?r.profile.note:'İsimsiz');
   var nat=esc(r.profile&&r.profile.nationality?r.profile.nationality:'');
+  var groupTag=r.groupId?'<span style="font-size:10px;background:var(--blue-dim);color:var(--blue);border-radius:10px;padding:2px 7px;font-weight:600">👥 Grup</span>':'';
   return '<div class="resp-card" onclick="openRespDetail(\''+safeId(r.id)+'\')">'
     +'<div class="resp-card-top">'
     +'<div class="resp-avatar" style="background:var(--accent)">'+init+'</div>'
     +'<div style="flex:1;min-width:0">'
     +'<div class="resp-name">'+note+(r.profile&&r.profile.age?' · '+esc(r.profile.age)+' yaş':'')+'</div>'
-    +'<div class="resp-meta">'+esc(proj.emoji||'📋')+' '+esc(proj.name)+' · '+dateStr+(nat?' · '+nat:'')+'</div>'
+    +'<div class="resp-meta">'+esc(proj.emoji||'📋')+' '+esc(proj.name)+' · '+dateStr+(nat?' · '+nat:'')+' '+groupTag+'</div>'
     +'</div></div>'
     +'<div class="resp-prog-label"><span>'+ans+'/'+total+' cevap</span><span>'+pct+'%</span></div>'
     +'<div class="prog-track"><div class="prog-fill" style="width:'+pct+'%"></div></div>'
@@ -1193,14 +1210,40 @@ function selectColor(containerId,color,dotEl){
 // ================================================================
 // SURVEY FLOW
 // ================================================================
+var surveyPersonCount=1;
+var surveyPersonLabels=[];
+
+function changePersonCount(delta){
+  surveyPersonCount=Math.max(1,Math.min(8,surveyPersonCount+delta));
+  document.getElementById('person-count-display').textContent=surveyPersonCount;
+  var area=document.getElementById('person-labels-area');
+  if(surveyPersonCount>1){
+    var existing=[];
+    area.querySelectorAll('input').forEach(function(inp){existing.push(inp.value)});
+    area.innerHTML='';
+    for(var i=0;i<surveyPersonCount;i++){
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:7px';
+      row.innerHTML='<div style="font-size:13px;color:var(--text2);flex-shrink:0;min-width:52px">Kişi '+(i+1)+'</div>'
+        +'<input class="inp" id="plabel-'+i+'" placeholder="Etiket (Erkek, Ali...)" value="'+(existing[i]||'')+'" autocomplete="off" style="flex:1">';
+      area.appendChild(row);
+    }
+  } else {
+    area.innerHTML='';
+  }
+}
+
 function openStartSurveyModal(projId){
   var proj=db.projects.find(function(p){return p.id===projId});
   if(!proj){showToast('Proje bulunamadı');return;}
   if(!proj.questions||proj.questions.length===0){showToast('Önce soru ekleyin');return;}
   activeProjId=safeId(projId);
   selMode='fast'; selCustomQs=new Set();
+  surveyPersonCount=1;
+  document.getElementById('person-count-display').textContent='1';
+  document.getElementById('person-labels-area').innerHTML='';
   document.getElementById('m-start-title').textContent=esc(proj.emoji||'📋')+' '+esc(proj.name);
-  document.getElementById('m-start-sub').textContent=proj.questions.length+' soru · Modu seçin';
+  document.getElementById('m-start-sub').textContent=proj.questions.length+' soru · Modu ve kişi sayısını seçin';
   document.getElementById('mode-fast').className='chip on';
   document.getElementById('mode-custom').className='chip';
   document.getElementById('custom-q-selector').style.display='none';
@@ -1245,9 +1288,29 @@ function launchSurvey(){
     qs=qs.filter(function(q){return selCustomQs.has(q.id)});
     if(qs.length===0){showToast('En az bir soru seçin');return;}
   }
+  // Collect person labels
+  surveyPersonLabels=[];
+  for(var i=0;i<surveyPersonCount;i++){
+    var inp=document.getElementById('plabel-'+i);
+    surveyPersonLabels.push(inp?inp.value.trim()||('Kişi '+(i+1)):('Kişi '+(i+1)));
+  }
   cm('start');
-  surveyState={id:'r_'+Date.now(),projectId:proj.id,date:new Date().toISOString(),
-    profile:{note:'',age:'',gender:'',nationality:''},answers:{},qIds:qs.map(function(q){return q.id}),step:'profile'};
+  surveyState={
+    id:'r_'+Date.now(),
+    projectId:proj.id,
+    date:new Date().toISOString(),
+    // Multi-person: profiles[] and answersPerPerson[]
+    persons:surveyPersonLabels,
+    currentPersonIdx:0,
+    profiles:surveyPersonLabels.map(function(lbl){return{note:lbl,age:'',gender:'',nationality:''}}),
+    answersPerPerson:surveyPersonLabels.map(function(){return{}}),
+    notesPerPerson:surveyPersonLabels.map(function(){return{}}),
+    // Single person compat fields (used for single person)
+    profile:{note:surveyPersonLabels[0],age:'',gender:'',nationality:''},
+    answers:{},notes:{},
+    qIds:qs.map(function(q){return q.id}),
+    step:'profile'
+  };
   showSurveyScreen();
 }
 
@@ -1264,29 +1327,36 @@ function renderSurveyStep(){
   var el=document.getElementById('sc-survey');
   var proj=db.projects.find(function(p){return p.id===surveyState.projectId});
   var clr='var(--accent)';
-  var totalSteps=surveyState.qIds.length+2;
+  var isMulti=surveyState.persons&&surveyState.persons.length>1;
+  var pi=surveyState.currentPersonIdx||0;
+  var personLabel=isMulti?(surveyState.persons[pi]||('Kişi '+(pi+1))):'';
+  var totalPersons=isMulti?surveyState.persons.length:1;
+  // totalSteps: profile + questions (per person if multi, we do profile once then per-person questions)
+  var totalSteps=surveyState.qIds.length+1; // +1 for profile
 
   if(surveyState.step==='profile'){
-    var g=surveyState.profile.gender||'';
+    var g=(surveyState.profiles&&surveyState.profiles[pi]&&surveyState.profiles[pi].gender)||'';
     var gChips=['Erkek','Kadın','Diğer'].map(function(gn){
       var isSel=g===gn;
       return '<div class="gender-chip'+(isSel?' sel':'')+'" onclick="selectGender(\''+gn+'\',this)">'+gn+'</div>';
     }).join('');
+    var personBadge=isMulti?'<div style="display:inline-flex;align-items:center;gap:6px;background:var(--accent-dim);color:var(--accent);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;margin-bottom:12px">👤 '+(pi+1)+'/'+totalPersons+' · '+esc(personLabel)+'</div>':'';
     el.innerHTML='<div class="sf-header">'
-      +'<div class="sf-meta"><span>👤 '+T('Kişi Profili','Person Profile')+'</span><span>1/'+totalSteps+'</span></div>'
+      +'<div class="sf-meta"><span>👤 '+T('Kişi Profili','Person Profile')+(isMulti?' '+(pi+1)+'/'+totalPersons:'')+'</span><span>1/'+(totalSteps)+'</span></div>'
       +'<div class="prog-track"><div class="prog-fill" style="width:'+(1/totalSteps*100)+'%"></div></div>'
       +'</div>'
       +'<div class="sf-body">'
+      +personBadge
       +'<div class="q-card"><div class="q-type-label" style="color:'+clr+'">📝 '+T('Profil','Profile')+'</div>'
       +'<div class="q-text">'+T('Kişi hakkında bilgi','About this person')+'</div>'
-      +'<div class="q-text-sub">'+T('İsteğe bağlı — atlamak için Devam\'a basın','Optional — press Continue to skip')+'</div></div>'
+      +'<div class="q-text-sub">'+T('İsteğe bağlı','Optional')+'</div></div>'
       +'<div class="ig"><label class="il">'+T('Not / İsim','Note / Name')+'</label>'
-      +'<input class="inp" id="p-note" placeholder="'+T('Kısa açıklama...','Short description...')+'" autocomplete="off" value="'+esc(surveyState.profile.note)+'"></div>'
+      +'<input class="inp" id="p-note" placeholder="'+T('Kısa açıklama...','Short description...')+'" autocomplete="off" value="'+esc((surveyState.profiles&&surveyState.profiles[pi]&&surveyState.profiles[pi].note)||personLabel)+'"></div>'
       +'<div style="display:flex;gap:10px">'
       +'<div class="ig" style="flex:1"><label class="il">'+T('Yaş','Age')+'</label>'
-      +'<input class="inp" id="p-age" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="25" min="1" max="120" value="'+esc(surveyState.profile.age)+'"></div>'
+      +'<input class="inp" id="p-age" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="25" min="1" max="120" value="'+esc((surveyState.profiles&&surveyState.profiles[pi]&&surveyState.profiles[pi].age)||'')+'"></div>'
       +'<div class="ig" style="flex:1"><label class="il">'+T('Uyruk/Şehir','Nationality/City')+'</label>'
-      +'<input class="inp" id="p-nat" placeholder="İstanbul, TR" autocomplete="off" value="'+esc(surveyState.profile.nationality)+'"></div>'
+      +'<input class="inp" id="p-nat" placeholder="Fethiye, TR" autocomplete="off" value="'+esc((surveyState.profiles&&surveyState.profiles[pi]&&surveyState.profiles[pi].nationality)||'')+'"></div>'
       +'</div>'
       +'<div class="ig"><label class="il">'+T('Cinsiyet','Gender')+'</label>'
       +'<div style="display:flex;gap:8px">'+gChips+'</div></div>'
@@ -1302,8 +1372,8 @@ function renderSurveyStep(){
     el.innerHTML='<div class="sf-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;padding:40px 20px">'
       +'<div style="font-size:56px;margin-bottom:18px">✅</div>'
       +'<div class="sec-title" style="font-size:26px;margin-bottom:8px">'+T('Tamamlandı!','Done!')+'</div>'
-      +'<div class="sec-sub" style="margin-bottom:26px">'+T('Cevaplar başarıyla kaydedildi.','Responses saved successfully.')+'</div>'
-      +'<button class="btn btn-p" style="max-width:260px" onclick="openRespDetail(\''+safeId(surveyState.id)+'\')">'+T('Cevabı Görüntüle','View Response')+'</button>'
+      +'<div class="sec-sub" style="margin-bottom:26px">'+(isMulti?totalPersons+' '+T('kişi kaydedildi.','people saved.'):T('Cevaplar başarıyla kaydedildi.','Responses saved successfully.'))+'</div>'
+      +'<button class="btn btn-p" style="max-width:260px" onclick="openRespDetail(\''+safeId(surveyState.savedIds&&surveyState.savedIds[0]||surveyState.id)+'\')">'+T('Cevabı Görüntüle','View Response')+'</button>'
       +'<button class="btn btn-g" style="max-width:260px;margin-top:8px" onclick="launchNewFromDone()">'+T('Yeni Anket','New Survey')+'</button>'
       +'<button class="btn btn-g" style="max-width:260px;margin-top:8px" onclick="go(\'home\')">'+T('Ana Sayfa','Home')+'</button>'
       +'</div>';
@@ -1318,32 +1388,43 @@ function renderSurveyStep(){
   var qclr=cat&&cat.color?cat.color:clr;
   var curStep=stepIdx+2;
   var pct=curStep/totalSteps*100;
-  var existing=surveyState.answers[qId];
+
+  // Current person's answers
+  var curAnswers=isMulti?(surveyState.answersPerPerson[pi]||{}):(surveyState.answers||{});
+  var curNotes=isMulti?(surveyState.notesPerPerson[pi]||{}):(surveyState.notes||{});
+  var existing=curAnswers[qId];
+  var existingNote=curNotes[qId]||'';
+
+  // Multi-person: show which person we're on
+  var personBadge=isMulti?'<div style="display:inline-flex;align-items:center;gap:6px;background:var(--accent-dim);color:var(--accent);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">👤 '+(pi+1)+'/'+totalPersons+' '+esc(personLabel)+'</div>':'';
 
   var ansUI='';
-  var existingNote=surveyState.notes&&surveyState.notes[qId]||'';
+  var existingNote2=curNotes&&curNotes[qId]||'';
   if(q.type==='rating'){
     var val=existing||0;
     ansUI='<div class="star-row" id="star-row">'
       +[1,2,3,4,5].map(function(i){return '<div class="star'+(i<=val?' lit':'')+'" onclick="setRating('+i+')" id="star-'+i+'">★</div>'}).join('')
       +'</div>'
       +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">📝 '+T('Not (isteğe bağlı)','Note (optional)')+'</div>'
-      +'<textarea class="ans-area" id="ans-note" style="min-height:60px" placeholder="'+T('Açık uçlu cevap veya not...','Open-ended answer or note...')+'">'+esc(existingNote)+'</textarea></div>';
+      +'<textarea class="ans-area" id="ans-note" style="min-height:55px" placeholder="'+T('Açık uçlu cevap...','Open-ended answer...')+'">'+esc(existingNote2)+'</textarea></div>';
   } else if(q.type==='mcq'){
     ansUI='<div class="mcq-opts">'+(q.options||[]).map(function(opt){
       return '<div class="mcq-opt'+(existing===opt?' sel':'')+'" onclick="selectMCQ(this,\''+esc(opt)+'\',\''+safeId(qId)+'\')">'+esc(opt)+'</div>';
     }).join('')+'</div>'
       +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">📝 '+T('Not (isteğe bağlı)','Note (optional)')+'</div>'
-      +'<textarea class="ans-area" id="ans-note" style="min-height:60px" placeholder="'+T('Açık uçlu cevap veya not...','Open-ended answer or note...')+'">'+esc(existingNote)+'</textarea></div>';
+      +'<textarea class="ans-area" id="ans-note" style="min-height:55px" placeholder="'+T('Açık uçlu cevap...','Open-ended answer...')+'">'+esc(existingNote2)+'</textarea></div>';
   } else {
     ansUI='<textarea class="ans-area" id="ans-text" placeholder="'+T('Cevabı buraya yazın...','Write the answer here...')+'">'+esc(existing||'')+'</textarea>';
   }
 
   el.innerHTML='<div class="sf-header">'
-    +'<div class="sf-meta"><span style="color:'+qclr+'">'+(cat?esc(cat.name):T('Soru','Question'))+' '+(stepIdx+1)+'/'+surveyState.qIds.length+'</span><span>'+curStep+'/'+totalSteps+'</span></div>'
+    +'<div class="sf-meta">'
+    +'<span style="color:'+qclr+'">'+(cat?esc(cat.name):T('Soru','Question'))+' '+(stepIdx+1)+'/'+surveyState.qIds.length+'</span>'
+    +'<span>'+curStep+'/'+totalSteps+'</span></div>'
     +'<div class="prog-track"><div class="prog-fill" style="width:'+pct+'%"></div></div>'
     +'</div>'
     +'<div class="sf-body">'
+    +(isMulti?'<div style="margin-bottom:10px">'+personBadge+'</div>':'')
     +'<div class="q-card">'
     +'<div class="q-type-label" style="color:'+qclr+';margin-bottom:8px">'+(QTL[q.type]||T('Yazılı','Text'))+'</div>'
     +'<div class="q-text">'+esc(q.text)+'</div>'
@@ -1353,13 +1434,20 @@ function renderSurveyStep(){
     +'<div class="sf-nav">'
     +'<button class="btn btn-g" onclick="surveyPrev()">← '+T('Geri','Back')+'</button>'
     +'<button class="btn btn-s" onclick="surveySkip()">'+T('Atla','Skip')+'</button>'
-    +'<button class="btn btn-p" onclick="surveyNext()">'+(stepIdx===surveyState.qIds.length-1?'✓ '+T('Bitir','Finish'):T('İleri →','Next →'))+'</button>'
+    +'<button class="btn btn-p" onclick="surveyNext()">'
+    +(isMulti&&pi<totalPersons-1&&stepIdx===surveyState.qIds.length-1
+      ?'👤 '+T('Sonraki Kişi →','Next Person →')
+      :(stepIdx===surveyState.qIds.length-1?'✓ '+T('Bitir','Finish'):T('İleri →','Next →')))
+    +'</button>'
     +'</div>';
 }
 
 function setRating(val){
+  var isMulti=surveyState.persons&&surveyState.persons.length>1;
+  var pi=surveyState.currentPersonIdx||0;
   var qId=surveyState.qIds[surveyState.step];
-  surveyState.answers[qId]=val;
+  if(isMulti){ surveyState.answersPerPerson[pi][qId]=val; }
+  else { surveyState.answers[qId]=val; }
   for(var i=1;i<=5;i++){
     var s=document.getElementById('star-'+i);
     if(s) s.className='star'+(i<=val?' lit':'');
@@ -1367,14 +1455,20 @@ function setRating(val){
 }
 
 function selectMCQ(el,val){
+  var isMulti=surveyState.persons&&surveyState.persons.length>1;
+  var pi=surveyState.currentPersonIdx||0;
   var qId=surveyState.qIds[surveyState.step];
   document.querySelectorAll('.mcq-opt').forEach(function(o){o.classList.remove('sel')});
   el.classList.add('sel');
-  surveyState.answers[qId]=val;
+  if(isMulti){ surveyState.answersPerPerson[pi][qId]=val; }
+  else { surveyState.answers[qId]=val; }
 }
 
 function selectGender(g,el){
-  surveyState.profile.gender=g;
+  var isMulti=surveyState.persons&&surveyState.persons.length>1;
+  var pi=surveyState.currentPersonIdx||0;
+  if(isMulti){ if(!surveyState.profiles[pi]) surveyState.profiles[pi]={}; surveyState.profiles[pi].gender=g; }
+  else { surveyState.profile.gender=g; }
   document.querySelectorAll('.gender-chip').forEach(function(e){
     var match=e.textContent.trim()===g;
     e.className='gender-chip'+(match?' sel':'');
@@ -1382,32 +1476,59 @@ function selectGender(g,el){
 }
 
 function profileNext(){
-  surveyState.profile.note=(document.getElementById('p-note')||{}).value||'';
-  surveyState.profile.age=(document.getElementById('p-age')||{}).value||'';
-  surveyState.profile.nationality=(document.getElementById('p-nat')||{}).value||'';
+  var isMulti=surveyState.persons&&surveyState.persons.length>1;
+  var pi=surveyState.currentPersonIdx||0;
+  var note=(document.getElementById('p-note')||{}).value||'';
+  var age=(document.getElementById('p-age')||{}).value||'';
+  var nat=(document.getElementById('p-nat')||{}).value||'';
+  if(isMulti){
+    if(!surveyState.profiles[pi]) surveyState.profiles[pi]={};
+    surveyState.profiles[pi].note=note||surveyState.persons[pi];
+    surveyState.profiles[pi].age=age;
+    surveyState.profiles[pi].nationality=nat;
+  } else {
+    surveyState.profile.note=note;
+    surveyState.profile.age=age;
+    surveyState.profile.nationality=nat;
+  }
   surveyState.step=0;
   renderSurveyStep();
 }
 
 function surveyNext(){
+  var isMulti=surveyState.persons&&surveyState.persons.length>1;
+  var pi=surveyState.currentPersonIdx||0;
   var stepIdx=surveyState.step;
   var qId=surveyState.qIds[stepIdx];
   var proj=db.projects.find(function(p){return p.id===surveyState.projectId});
   var q=proj?proj.questions.find(function(q){return q.id===qId}):null;
+
   if(q&&q.type==='text'){
     var ta=document.getElementById('ans-text');
     var ans=ta?ta.value.trim():'';
-    if(ans) surveyState.answers[qId]=ans;
+    if(ans){
+      if(isMulti) surveyState.answersPerPerson[pi][qId]=ans;
+      else surveyState.answers[qId]=ans;
+    }
   }
-  // Save note for MCQ and rating
   if(q&&(q.type==='mcq'||q.type==='rating')){
     var noteEl=document.getElementById('ans-note');
     var note=noteEl?noteEl.value.trim():'';
-    if(!surveyState.notes) surveyState.notes={};
-    if(note) surveyState.notes[qId]=note;
-    else delete surveyState.notes[qId];
+    if(note){
+      if(isMulti) surveyState.notesPerPerson[pi][qId]=note;
+      else { if(!surveyState.notes) surveyState.notes={}; surveyState.notes[qId]=note; }
+    }
   }
-  advanceStep();
+
+  // If last question and multi-person, check if more persons remain
+  if(isMulti && stepIdx>=surveyState.qIds.length-1 && pi<surveyState.persons.length-1){
+    // Move to next person's profile
+    surveyState.currentPersonIdx=pi+1;
+    surveyState.step='profile';
+    renderSurveyStep();
+  } else {
+    advanceStep();
+  }
 }
 
 function advanceStep(){
@@ -1426,11 +1547,46 @@ function surveySkip(){advanceStep();}
 function cancelSurvey(){surveyState=null;go('home');}
 
 function finishSurvey(){
-  db.responses.push(Object.assign({},surveyState,{step:'done'}));
+  var isMulti=surveyState.persons&&surveyState.persons.length>1;
+  var savedIds=[];
+  if(isMulti){
+    // Save each person as a separate response
+    surveyState.persons.forEach(function(personLabel,pi){
+      var prof=surveyState.profiles[pi]||{note:personLabel,age:'',gender:'',nationality:''};
+      var resp={
+        id:'r_'+Date.now()+'_'+pi,
+        projectId:surveyState.projectId,
+        date:surveyState.date,
+        profile:prof,
+        answers:surveyState.answersPerPerson[pi]||{},
+        notes:surveyState.notesPerPerson[pi]||{},
+        qIds:surveyState.qIds,
+        groupId:surveyState.id, // link grouped responses
+        groupLabel:personLabel,
+        step:'done'
+      };
+      db.responses.push(resp);
+      savedIds.push(resp.id);
+    });
+  } else {
+    var resp={
+      id:surveyState.id,
+      projectId:surveyState.projectId,
+      date:surveyState.date,
+      profile:surveyState.profile,
+      answers:surveyState.answers,
+      notes:surveyState.notes||{},
+      qIds:surveyState.qIds,
+      step:'done'
+    };
+    db.responses.push(resp);
+    savedIds.push(resp.id);
+  }
   save();
   surveyState.step='done';
+  surveyState.savedIds=savedIds;
   renderSurveyStep();
-  showToast('✓ Kaydedildi');
+  showToast('✓ '+(isMulti?surveyState.persons.length+' kişi kaydedildi':'Kaydedildi'));
 }
 
 function launchNewFromDone(){
@@ -1961,6 +2117,16 @@ function processOldImport(event){
     try{
       var oldSurveys=JSON.parse(e.target.result);
       if(!Array.isArray(oldSurveys)) throw new Error('Geçersiz format');
+
+      var isFresh=document.getElementById('import-mode-fresh')&&document.getElementById('import-mode-fresh').className==='chip on';
+      if(isFresh){
+        // Remove existing Felsefi Anket project and its responses
+        var oldProj=db.projects.find(function(p){return p.name==='Felsefi Anket'||p.id==='p_oldfelsefi'});
+        if(oldProj){
+          db.responses=db.responses.filter(function(r){return r.projectId!==oldProj.id});
+          db.projects=db.projects.filter(function(p){return p.id!==oldProj.id});
+        }
+      }
 
       // Find or create "Felsefi Anket" project
       var proj=db.projects.find(function(p){return p.name==='Felsefi Anket'});
