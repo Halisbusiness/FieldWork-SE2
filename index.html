@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+,,<!DOCTYPE html>
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
@@ -141,8 +141,12 @@ body{height:100%;height:-webkit-fill-available;background:var(--bg);color:var(--
 .btn-row .btn{-webkit-flex:1;flex:1}
 
 /* ── INPUTS — font-size ≥16px prevents iOS auto-zoom ──────── */
-.ig{margin-bottom:13px}
-.il{font-size:12px;font-weight:600;color:var(--text2);letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px;display:block}
+.ig{margin-bottom:13px;padding-left:0;padding-right:0}
+.il{font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px;display:block}
+/* Modal içindeki her .ig öğesi padding alır */
+.modal-sh .ig{padding:0}
+.modal-sh .il{padding-left:0}
+.modal-sh .btn-row{margin-top:8px}
 .inp{
   width:100%;background:var(--s2);border:1px solid var(--border);
   border-radius:var(--r-sm);color:var(--text);
@@ -271,7 +275,8 @@ select.inp{
 .modal-sh{
   background:var(--s1);border-radius:20px 20px 0 0;
   width:100%;max-width:375px;
-  padding:18px 18px calc(var(--sab) + 22px);
+  padding:20px 20px calc(var(--sab) + 24px);
+  -webkit-box-sizing:border-box;box-sizing:border-box;
   -webkit-transform:translateY(100%);transform:translateY(100%);
   -webkit-transition:-webkit-transform .3s ease;transition:transform .3s ease;
   max-height:88vh;
@@ -279,8 +284,8 @@ select.inp{
 }
 .modal-ov.open .modal-sh{-webkit-transform:translateY(0);transform:translateY(0)}
 .modal-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 18px}
-.modal-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:4px;padding-left:2px}
-.modal-sub{font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5;padding-left:2px}
+.modal-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:6px}
+.modal-sub{font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5}
 
 /* ── CHIPS ───────────────────────────────────────────────── */
 .chip-row{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;gap:8px;margin-bottom:14px}
@@ -400,10 +405,19 @@ html,body{width:375px;overflow-x:hidden}
 .card{padding:14px 14px}
 .q-card{padding:15px 14px}
 .q-text{font-size:15px}
-/* Modal — 18px her iki yanda, asla sıfır değil */
+/* Modal — SE2'de de kenarlardan boşluk garantisi */
 .modal-sh{
   max-width:375px;
-  padding:18px 18px calc(var(--sab)+20px) !important;
+  padding-top:20px !important;
+  padding-left:20px !important;
+  padding-right:20px !important;
+  padding-bottom:calc(var(--sab)+24px) !important;
+  -webkit-box-sizing:border-box!important;box-sizing:border-box!important;
+}
+/* Tüm doğrudan modal içerik elemanları için kenar boşluğu garantisi */
+.modal-sh > *{
+  margin-left:0;
+  margin-right:0;
 }
 /* Stats */
 .stat-mini-n{font-size:18px}
@@ -458,7 +472,7 @@ html,body{width:375px;overflow-x:hidden}
 
   <!-- MODALS -->
   <div class="modal-ov" id="m-project" onclick="cm('project')">
-    <div class="modal-sh" onclick="event.stopPropagation()">
+    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title" id="m-proj-title">Yeni Proje</div>
       <div class="modal-sub">Araştırma konunuzu tanımlayın</div>
@@ -482,7 +496,7 @@ html,body{width:375px;overflow-x:hidden}
   </div>
 
   <div class="modal-ov" id="m-question" onclick="cm('question')">
-    <div class="modal-sh" onclick="event.stopPropagation()">
+    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title" id="m-q-title">Soru Ekle</div>
       <div class="ig"><label class="il">Soru Metni</label>
@@ -508,7 +522,7 @@ html,body{width:375px;overflow-x:hidden}
   </div>
 
   <div class="modal-ov" id="m-cat" onclick="cm('cat')">
-    <div class="modal-sh" onclick="event.stopPropagation()">
+    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title" id="m-cat-title">Kategori Ekle</div>
       <div class="ig"><label class="il">Kategori Adı</label>
@@ -522,7 +536,7 @@ html,body{width:375px;overflow-x:hidden}
   </div>
 
   <div class="modal-ov" id="m-start" onclick="cm('start')">
-    <div class="modal-sh" onclick="event.stopPropagation()">
+    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title" id="m-start-title">Anket Başlat</div>
       <div class="modal-sub" id="m-start-sub"></div>
@@ -543,7 +557,7 @@ html,body{width:375px;overflow-x:hidden}
   </div>
 
   <div class="modal-ov" id="m-delete" onclick="cm('delete')">
-    <div class="modal-sh" onclick="event.stopPropagation()">
+    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title" id="m-del-title">Emin misiniz?</div>
       <div class="modal-sub" id="m-del-sub">Bu işlem geri alınamaz.</div>
@@ -555,7 +569,7 @@ html,body{width:375px;overflow-x:hidden}
   </div>
 
   <div class="modal-ov" id="m-export" onclick="cm('export')">
-    <div class="modal-sh" onclick="event.stopPropagation()">
+    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title">Export & Paylaş</div>
       <div id="export-modal-content"></div>
@@ -563,7 +577,7 @@ html,body{width:375px;overflow-x:hidden}
   </div>
 
   <div class="modal-ov" id="m-qr" onclick="cm('qr')">
-    <div class="modal-sh" onclick="event.stopPropagation()">
+    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title">QR Kod & Link</div>
       <div class="modal-sub">Anket linkini paylaşın</div>
@@ -573,7 +587,7 @@ html,body{width:375px;overflow-x:hidden}
 
   <!-- IMPORT OLD DATA MODAL -->
   <div class="modal-ov" id="m-import" onclick="cm('import')">
-    <div class="modal-sh" onclick="event.stopPropagation()">
+    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
       <div class="modal-title">📥 Eski Veriyi Aktar</div>
       <div class="modal-sub">Felsefi Anket uygulamasından indirdiğin JSON dosyasını seç. Veriler otomatik dönüştürülür.</div>
