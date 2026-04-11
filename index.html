@@ -584,14 +584,6 @@ html,body{width:375px;overflow-x:hidden}
       <div id="export-modal-content"></div>
     </div>
   </div>
-
-  <div class="modal-ov" id="m-qr" onclick="cm('qr')">
-    <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
-      <div class="modal-handle"></div>
-      <div class="modal-title">QR Kod & Link</div>
-      <div class="modal-sub">Anket linkini paylaşın</div>
-      <div id="qr-content"></div>
-    </div>
   </div>
 
   <!-- IMPORT OLD DATA MODAL -->
@@ -620,22 +612,6 @@ html,body{width:375px;overflow-x:hidden}
   <div class="toast" id="toast"></div>
 </div>
 
-<!-- QR inline — no external CDN dependency -->
-<script>
-/* Minimal QR encoder (no CDN needed — works offline) */
-/* We generate a simple data URI via Google Charts API with fallback text */
-function makeQR(container, text){
-  // Try Google Charts (online), fallback to text link
-  const img = document.createElement('img');
-  img.style.cssText='border-radius:8px;max-width:200px;width:100%';
-  img.src='https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl='+encodeURIComponent(text)+'&choe=UTF-8';
-  img.onerror=function(){
-    container.innerHTML='<div style="font-size:13px;color:var(--text2);padding:10px;text-align:center">QR yüklenemedi — linki kopyalayın</div>';
-  };
-  container.innerHTML='';
-  container.appendChild(img);
-}
-</script>
 
 <script>
 // ================================================================
@@ -1001,7 +977,7 @@ function renderProjectDetail(el){
     +'</div>'
     +'<div class="btn-row" style="flex-wrap:wrap;gap:6px">'
     +'<button class="btn btn-p btn-sm" style="min-width:130px" onclick="openStartSurveyModal(\''+pid+'\')">🎙️ Anket Başlat</button>'
-    +'<button class="btn btn-s btn-sm" onclick="openQRModal(\''+pid+'\')">📡 QR / Link</button>'
+    
     +'<button class="btn btn-s btn-sm" onclick="openExportModal(\''+pid+'\',\'proj\')">📤 Export</button>'
     +'</div></div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
@@ -1288,28 +1264,27 @@ function launchSurvey(){
     qs=qs.filter(function(q){return selCustomQs.has(q.id)});
     if(qs.length===0){showToast('En az bir soru seçin');return;}
   }
-  // Collect person labels
   surveyPersonLabels=[];
   for(var i=0;i<surveyPersonCount;i++){
     var inp=document.getElementById('plabel-'+i);
     surveyPersonLabels.push(inp?inp.value.trim()||('Kişi '+(i+1)):('Kişi '+(i+1)));
   }
   cm('start');
+  var n=surveyPersonLabels.length;
   surveyState={
     id:'r_'+Date.now(),
     projectId:proj.id,
     date:new Date().toISOString(),
-    // Multi-person: profiles[] and answersPerPerson[]
     persons:surveyPersonLabels,
-    currentPersonIdx:0,
     profiles:surveyPersonLabels.map(function(lbl){return{note:lbl,age:'',gender:'',nationality:''}}),
     answersPerPerson:surveyPersonLabels.map(function(){return{}}),
     notesPerPerson:surveyPersonLabels.map(function(){return{}}),
-    // Single person compat fields (used for single person)
-    profile:{note:surveyPersonLabels[0],age:'',gender:'',nationality:''},
-    answers:{},notes:{},
     qIds:qs.map(function(q){return q.id}),
-    step:'profile'
+    // step encoding:
+    // {phase:'profile', pi:N} → N. kişinin profil girişi
+    // {phase:'question', qi:N, pi:M} → N. soru, M. kişi
+    // 'done'
+    step:{phase:'profile',pi:0}
   };
   showSurveyScreen();
 }
@@ -1327,52 +1302,27 @@ function renderSurveyStep(){
   var el=document.getElementById('sc-survey');
   var proj=db.projects.find(function(p){return p.id===surveyState.projectId});
   var clr='var(--accent)';
-  var isMulti=surveyState.persons&&surveyState.persons.length>1;
-  var pi=surveyState.currentPersonIdx||0;
-  var personLabel=isMulti?(surveyState.persons[pi]||('Kişi '+(pi+1))):'';
-  var totalPersons=isMulti?surveyState.persons.length:1;
-  // totalSteps: profile + questions (per person if multi, we do profile once then per-person questions)
-  var totalSteps=surveyState.qIds.length+1; // +1 for profile
+  var n=surveyState.persons.length;
+  var isMulti=n>1;
+  var step=surveyState.step;
+  var numQ=surveyState.qIds.length;
 
-  if(surveyState.step==='profile'){
-    var g=(surveyState.profiles&&surveyState.profiles[pi]&&surveyState.profiles[pi].gender)||'';
-    var gChips=['Erkek','Kadın','Diğer'].map(function(gn){
-      var isSel=g===gn;
-      return '<div class="gender-chip'+(isSel?' sel':'')+'" onclick="selectGender(\''+gn+'\',this)">'+gn+'</div>';
-    }).join('');
-    var personBadge=isMulti?'<div style="display:inline-flex;align-items:center;gap:6px;background:var(--accent-dim);color:var(--accent);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;margin-bottom:12px">👤 '+(pi+1)+'/'+totalPersons+' · '+esc(personLabel)+'</div>':'';
-    el.innerHTML='<div class="sf-header">'
-      +'<div class="sf-meta"><span>👤 '+T('Kişi Profili','Person Profile')+(isMulti?' '+(pi+1)+'/'+totalPersons:'')+'</span><span>1/'+(totalSteps)+'</span></div>'
-      +'<div class="prog-track"><div class="prog-fill" style="width:'+(1/totalSteps*100)+'%"></div></div>'
-      +'</div>'
-      +'<div class="sf-body">'
-      +personBadge
-      +'<div class="q-card"><div class="q-type-label" style="color:'+clr+'">📝 '+T('Profil','Profile')+'</div>'
-      +'<div class="q-text">'+T('Kişi hakkında bilgi','About this person')+'</div>'
-      +'<div class="q-text-sub">'+T('İsteğe bağlı','Optional')+'</div></div>'
-      +'<div class="ig"><label class="il">'+T('Not / İsim','Note / Name')+'</label>'
-      +'<input class="inp" id="p-note" placeholder="'+T('Kısa açıklama...','Short description...')+'" autocomplete="off" value="'+esc((surveyState.profiles&&surveyState.profiles[pi]&&surveyState.profiles[pi].note)||personLabel)+'"></div>'
-      +'<div style="display:flex;gap:10px">'
-      +'<div class="ig" style="flex:1"><label class="il">'+T('Yaş','Age')+'</label>'
-      +'<input class="inp" id="p-age" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="25" min="1" max="120" value="'+esc((surveyState.profiles&&surveyState.profiles[pi]&&surveyState.profiles[pi].age)||'')+'"></div>'
-      +'<div class="ig" style="flex:1"><label class="il">'+T('Uyruk/Şehir','Nationality/City')+'</label>'
-      +'<input class="inp" id="p-nat" placeholder="Fethiye, TR" autocomplete="off" value="'+esc((surveyState.profiles&&surveyState.profiles[pi]&&surveyState.profiles[pi].nationality)||'')+'"></div>'
-      +'</div>'
-      +'<div class="ig"><label class="il">'+T('Cinsiyet','Gender')+'</label>'
-      +'<div style="display:flex;gap:8px">'+gChips+'</div></div>'
-      +'</div>'
-      +'<div class="sf-nav">'
-      +'<button class="btn btn-g" onclick="cancelSurvey()">'+T('İptal','Cancel')+'</button>'
-      +'<button class="btn btn-p" onclick="profileNext()">'+T('Devam →','Continue →')+'</button>'
-      +'</div>';
-    return;
+  // Progress bar: n profil adımı + (numQ * n) soru adımı
+  var totalSteps=n+numQ*n;
+  function stepIndex(){
+    if(step==='done') return totalSteps;
+    if(step.phase==='profile') return step.pi;
+    return n + step.qi*n + step.pi;
   }
+  var curStepN=stepIndex()+1;
+  var pct=curStepN/totalSteps*100;
 
-  if(surveyState.step==='done'){
+  // ── DONE ──
+  if(step==='done'){
     el.innerHTML='<div class="sf-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;padding:40px 20px">'
       +'<div style="font-size:56px;margin-bottom:18px">✅</div>'
       +'<div class="sec-title" style="font-size:26px;margin-bottom:8px">'+T('Tamamlandı!','Done!')+'</div>'
-      +'<div class="sec-sub" style="margin-bottom:26px">'+(isMulti?totalPersons+' '+T('kişi kaydedildi.','people saved.'):T('Cevaplar başarıyla kaydedildi.','Responses saved successfully.'))+'</div>'
+      +'<div class="sec-sub" style="margin-bottom:26px">'+(isMulti?n+' '+T('kişi kaydedildi.','people saved.'):T('Cevaplar kaydedildi.','Responses saved.'))+'</div>'
       +'<button class="btn btn-p" style="max-width:260px" onclick="openRespDetail(\''+safeId(surveyState.savedIds&&surveyState.savedIds[0]||surveyState.id)+'\')">'+T('Cevabı Görüntüle','View Response')+'</button>'
       +'<button class="btn btn-g" style="max-width:260px;margin-top:8px" onclick="launchNewFromDone()">'+T('Yeni Anket','New Survey')+'</button>'
       +'<button class="btn btn-g" style="max-width:260px;margin-top:8px" onclick="go(\'home\')">'+T('Ana Sayfa','Home')+'</button>'
@@ -1380,51 +1330,83 @@ function renderSurveyStep(){
     return;
   }
 
-  var stepIdx=surveyState.step;
-  var qId=surveyState.qIds[stepIdx];
+  var pi=step.pi;
+  var personLabel=surveyState.persons[pi]||('Kişi '+(pi+1));
+
+  // ── PROFİL ADIMI ──
+  if(step.phase==='profile'){
+    var prof=surveyState.profiles[pi]||{};
+    var g=prof.gender||'';
+    var gChips=['Erkek','Kadın','Diğer'].map(function(gn){
+      return '<div class="gender-chip'+(g===gn?' sel':'')+'" onclick="selectGender(\''+gn+'\',this)">'+gn+'</div>';
+    }).join('');
+    var badge=isMulti?'<div style="display:inline-flex;align-items:center;gap:6px;background:var(--accent-dim);color:var(--accent);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;margin-bottom:12px">👤 '+(pi+1)+'/'+n+' · '+esc(personLabel)+'</div><br>':'';
+    el.innerHTML='<div class="sf-header">'
+      +'<div class="sf-meta"><span>👤 '+T('Profil','Profile')+' '+(pi+1)+(isMulti?'/'+n:'')+'</span><span>'+curStepN+'/'+totalSteps+'</span></div>'
+      +'<div class="prog-track"><div class="prog-fill" style="width:'+pct+'%"></div></div>'
+      +'</div>'
+      +'<div class="sf-body">'+badge
+      +'<div class="ig"><label class="il">'+T('Not / İsim','Note / Name')+'</label>'
+      +'<input class="inp" id="p-note" autocomplete="off" value="'+esc(prof.note||personLabel)+'"></div>'
+      +'<div style="display:flex;gap:10px">'
+      +'<div class="ig" style="flex:1"><label class="il">'+T('Yaş','Age')+'</label>'
+      +'<input class="inp" id="p-age" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="25" value="'+esc(prof.age||'')+'"></div>'
+      +'<div class="ig" style="flex:1"><label class="il">'+T('Uyruk/Şehir','Nationality/City')+'</label>'
+      +'<input class="inp" id="p-nat" placeholder="Fethiye, TR" autocomplete="off" value="'+esc(prof.nationality||'')+'"></div>'
+      +'</div>'
+      +'<div class="ig"><label class="il">'+T('Cinsiyet','Gender')+'</label>'
+      +'<div style="display:flex;gap:8px">'+gChips+'</div></div>'
+      +'</div>'
+      +'<div class="sf-nav">'
+      +'<button class="btn btn-g" onclick="surveyPrev()">← '+T('Geri','Back')+'</button>'
+      +'<button class="btn btn-p" onclick="profileNext()">'+T('Devam →','Continue →')+'</button>'
+      +'</div>';
+    return;
+  }
+
+  // ── SORU ADIMI ──
+  var qi=step.qi;
+  var qId=surveyState.qIds[qi];
   var q=proj?proj.questions.find(function(q){return q.id===qId}):null;
-  if(!q){advanceStep();return;}
+  if(!q){stepForward();return;}
   var cat=proj&&proj.categories?proj.categories.find(function(c){return c.id===q.catId}):null;
   var qclr=cat&&cat.color?cat.color:clr;
-  var curStep=stepIdx+2;
-  var pct=curStep/totalSteps*100;
-
-  // Current person's answers
-  var curAnswers=isMulti?(surveyState.answersPerPerson[pi]||{}):(surveyState.answers||{});
-  var curNotes=isMulti?(surveyState.notesPerPerson[pi]||{}):(surveyState.notes||{});
+  var curAnswers=surveyState.answersPerPerson[pi]||{};
+  var curNotes=surveyState.notesPerPerson[pi]||{};
   var existing=curAnswers[qId];
   var existingNote=curNotes[qId]||'';
 
-  // Multi-person: show which person we're on
-  var personBadge=isMulti?'<div style="display:inline-flex;align-items:center;gap:6px;background:var(--accent-dim);color:var(--accent);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">👤 '+(pi+1)+'/'+totalPersons+' '+esc(personLabel)+'</div>':'';
+  var personBadge=isMulti?'<div style="margin-bottom:8px"><span style="display:inline-flex;align-items:center;gap:6px;background:var(--accent-dim);color:var(--accent);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">👤 '+(pi+1)+'/'+n+' · '+esc(personLabel)+'</span></div>':'';
 
   var ansUI='';
-  var existingNote2=curNotes&&curNotes[qId]||'';
   if(q.type==='rating'){
     var val=existing||0;
     ansUI='<div class="star-row" id="star-row">'
       +[1,2,3,4,5].map(function(i){return '<div class="star'+(i<=val?' lit':'')+'" onclick="setRating('+i+')" id="star-'+i+'">★</div>'}).join('')
       +'</div>'
       +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">📝 '+T('Not (isteğe bağlı)','Note (optional)')+'</div>'
-      +'<textarea class="ans-area" id="ans-note" style="min-height:55px" placeholder="'+T('Açık uçlu cevap...','Open-ended answer...')+'">'+esc(existingNote2)+'</textarea></div>';
+      +'<textarea class="ans-area" id="ans-note" style="min-height:55px" placeholder="'+T('Açık uçlu cevap...','Open-ended answer...')+'">'+esc(existingNote)+'</textarea></div>';
   } else if(q.type==='mcq'){
     ansUI='<div class="mcq-opts">'+(q.options||[]).map(function(opt){
-      return '<div class="mcq-opt'+(existing===opt?' sel':'')+'" onclick="selectMCQ(this,\''+esc(opt)+'\',\''+safeId(qId)+'\')">'+esc(opt)+'</div>';
+      return '<div class="mcq-opt'+(existing===opt?' sel':'')+'" onclick="selectMCQ(this,\''+esc(opt)+'\')">'+esc(opt)+'</div>';
     }).join('')+'</div>'
       +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">📝 '+T('Not (isteğe bağlı)','Note (optional)')+'</div>'
-      +'<textarea class="ans-area" id="ans-note" style="min-height:55px" placeholder="'+T('Açık uçlu cevap...','Open-ended answer...')+'">'+esc(existingNote2)+'</textarea></div>';
+      +'<textarea class="ans-area" id="ans-note" style="min-height:55px" placeholder="'+T('Açık uçlu cevap...','Open-ended answer...')+'">'+esc(existingNote)+'</textarea></div>';
   } else {
     ansUI='<textarea class="ans-area" id="ans-text" placeholder="'+T('Cevabı buraya yazın...','Write the answer here...')+'">'+esc(existing||'')+'</textarea>';
   }
 
+  var isLastStep=(qi===numQ-1 && pi===n-1);
+  var nextBtnText=isLastStep?'✓ '+T('Bitir','Finish'):T('İleri →','Next →');
+
   el.innerHTML='<div class="sf-header">'
     +'<div class="sf-meta">'
-    +'<span style="color:'+qclr+'">'+(cat?esc(cat.name):T('Soru','Question'))+' '+(stepIdx+1)+'/'+surveyState.qIds.length+'</span>'
-    +'<span>'+curStep+'/'+totalSteps+'</span></div>'
+    +'<span style="color:'+qclr+'">'+(cat?esc(cat.name):T('Soru','Question'))+' '+(qi+1)+'/'+numQ+'</span>'
+    +'<span>'+curStepN+'/'+totalSteps+'</span></div>'
     +'<div class="prog-track"><div class="prog-fill" style="width:'+pct+'%"></div></div>'
     +'</div>'
     +'<div class="sf-body">'
-    +(isMulti?'<div style="margin-bottom:10px">'+personBadge+'</div>':'')
+    +personBadge
     +'<div class="q-card">'
     +'<div class="q-type-label" style="color:'+qclr+';margin-bottom:8px">'+(QTL[q.type]||T('Yazılı','Text'))+'</div>'
     +'<div class="q-text">'+esc(q.text)+'</div>'
@@ -1434,20 +1416,16 @@ function renderSurveyStep(){
     +'<div class="sf-nav">'
     +'<button class="btn btn-g" onclick="surveyPrev()">← '+T('Geri','Back')+'</button>'
     +'<button class="btn btn-s" onclick="surveySkip()">'+T('Atla','Skip')+'</button>'
-    +'<button class="btn btn-p" onclick="surveyNext()">'
-    +(isMulti&&pi<totalPersons-1&&stepIdx===surveyState.qIds.length-1
-      ?'👤 '+T('Sonraki Kişi →','Next Person →')
-      :(stepIdx===surveyState.qIds.length-1?'✓ '+T('Bitir','Finish'):T('İleri →','Next →')))
-    +'</button>'
+    +'<button class="btn btn-p" onclick="surveyNext()">'+nextBtnText+'</button>'
     +'</div>';
 }
 
 function setRating(val){
-  var isMulti=surveyState.persons&&surveyState.persons.length>1;
-  var pi=surveyState.currentPersonIdx||0;
-  var qId=surveyState.qIds[surveyState.step];
-  if(isMulti){ surveyState.answersPerPerson[pi][qId]=val; }
-  else { surveyState.answers[qId]=val; }
+  var step=surveyState.step;
+  if(!step||step==='done'||step.phase==='profile') return;
+  var pi=step.pi;
+  var qId=surveyState.qIds[step.qi];
+  surveyState.answersPerPerson[pi][qId]=val;
   for(var i=1;i<=5;i++){
     var s=document.getElementById('star-'+i);
     if(s) s.className='star'+(i<=val?' lit':'');
@@ -1455,138 +1433,144 @@ function setRating(val){
 }
 
 function selectMCQ(el,val){
-  var isMulti=surveyState.persons&&surveyState.persons.length>1;
-  var pi=surveyState.currentPersonIdx||0;
-  var qId=surveyState.qIds[surveyState.step];
+  var step=surveyState.step;
+  if(!step||step==='done'||step.phase==='profile') return;
+  var pi=step.pi;
+  var qId=surveyState.qIds[step.qi];
   document.querySelectorAll('.mcq-opt').forEach(function(o){o.classList.remove('sel')});
   el.classList.add('sel');
-  if(isMulti){ surveyState.answersPerPerson[pi][qId]=val; }
-  else { surveyState.answers[qId]=val; }
+  surveyState.answersPerPerson[pi][qId]=val;
 }
 
 function selectGender(g,el){
-  var isMulti=surveyState.persons&&surveyState.persons.length>1;
-  var pi=surveyState.currentPersonIdx||0;
-  if(isMulti){ if(!surveyState.profiles[pi]) surveyState.profiles[pi]={}; surveyState.profiles[pi].gender=g; }
-  else { surveyState.profile.gender=g; }
+  var step=surveyState.step;
+  var pi=(step&&step.phase==='profile')?step.pi:0;
+  if(!surveyState.profiles[pi]) surveyState.profiles[pi]={};
+  surveyState.profiles[pi].gender=g;
   document.querySelectorAll('.gender-chip').forEach(function(e){
-    var match=e.textContent.trim()===g;
-    e.className='gender-chip'+(match?' sel':'');
+    e.className='gender-chip'+(e.textContent.trim()===g?' sel':'');
   });
 }
 
 function profileNext(){
-  var isMulti=surveyState.persons&&surveyState.persons.length>1;
-  var pi=surveyState.currentPersonIdx||0;
-  var note=(document.getElementById('p-note')||{}).value||'';
-  var age=(document.getElementById('p-age')||{}).value||'';
-  var nat=(document.getElementById('p-nat')||{}).value||'';
-  if(isMulti){
-    if(!surveyState.profiles[pi]) surveyState.profiles[pi]={};
-    surveyState.profiles[pi].note=note||surveyState.persons[pi];
-    surveyState.profiles[pi].age=age;
-    surveyState.profiles[pi].nationality=nat;
+  var step=surveyState.step;
+  var pi=step.pi;
+  var n=surveyState.persons.length;
+  if(!surveyState.profiles[pi]) surveyState.profiles[pi]={};
+  surveyState.profiles[pi].note=(document.getElementById('p-note')||{}).value||surveyState.persons[pi];
+  surveyState.profiles[pi].age=(document.getElementById('p-age')||{}).value||'';
+  surveyState.profiles[pi].nationality=(document.getElementById('p-nat')||{}).value||'';
+  if(pi<n-1){
+    // Sonraki kişinin profili
+    surveyState.step={phase:'profile',pi:pi+1};
   } else {
-    surveyState.profile.note=note;
-    surveyState.profile.age=age;
-    surveyState.profile.nationality=nat;
+    // Tüm profiller tamam → ilk soruya geç
+    surveyState.step={phase:'question',qi:0,pi:0};
   }
-  surveyState.step=0;
   renderSurveyStep();
 }
 
 function surveyNext(){
-  var isMulti=surveyState.persons&&surveyState.persons.length>1;
-  var pi=surveyState.currentPersonIdx||0;
-  var stepIdx=surveyState.step;
-  var qId=surveyState.qIds[stepIdx];
+  var step=surveyState.step;
+  if(!step||step==='done'||step.phase==='profile') return;
+  var pi=step.pi;
+  var qi=step.qi;
+  var n=surveyState.persons.length;
+  var numQ=surveyState.qIds.length;
+  var qId=surveyState.qIds[qi];
   var proj=db.projects.find(function(p){return p.id===surveyState.projectId});
   var q=proj?proj.questions.find(function(q){return q.id===qId}):null;
 
+  // Cevabı kaydet
   if(q&&q.type==='text'){
     var ta=document.getElementById('ans-text');
     var ans=ta?ta.value.trim():'';
-    if(ans){
-      if(isMulti) surveyState.answersPerPerson[pi][qId]=ans;
-      else surveyState.answers[qId]=ans;
-    }
+    if(ans) surveyState.answersPerPerson[pi][qId]=ans;
   }
   if(q&&(q.type==='mcq'||q.type==='rating')){
     var noteEl=document.getElementById('ans-note');
     var note=noteEl?noteEl.value.trim():'';
-    if(note){
-      if(isMulti) surveyState.notesPerPerson[pi][qId]=note;
-      else { if(!surveyState.notes) surveyState.notes={}; surveyState.notes[qId]=note; }
-    }
+    if(note) surveyState.notesPerPerson[pi][qId]=note;
   }
 
-  // If last question and multi-person, check if more persons remain
-  if(isMulti && stepIdx>=surveyState.qIds.length-1 && pi<surveyState.persons.length-1){
-    // Move to next person's profile
-    surveyState.currentPersonIdx=pi+1;
-    surveyState.step='profile';
-    renderSurveyStep();
+  stepForward();
+}
+
+function stepForward(){
+  var step=surveyState.step;
+  if(step==='done'||step.phase==='profile') return;
+  var qi=step.qi;
+  var pi=step.pi;
+  var n=surveyState.persons.length;
+  var numQ=surveyState.qIds.length;
+
+  if(pi<n-1){
+    // Aynı soruda sonraki kişi
+    surveyState.step={phase:'question',qi:qi,pi:pi+1};
+  } else if(qi<numQ-1){
+    // Sonraki soru, ilk kişi
+    surveyState.step={phase:'question',qi:qi+1,pi:0};
   } else {
-    advanceStep();
+    finishSurvey();
+    return;
   }
-}
-
-function advanceStep(){
-  if(surveyState.step>=surveyState.qIds.length-1) finishSurvey();
-  else{surveyState.step++;renderSurveyStep();}
-}
-
-function surveyPrev(){
-  if(surveyState.step===0) surveyState.step='profile';
-  else if(surveyState.step!=='profile') surveyState.step--;
   renderSurveyStep();
 }
 
-function surveySkip(){advanceStep();}
+function stepBackward(){
+  var step=surveyState.step;
+  if(step==='done') return;
+  var n=surveyState.persons.length;
+  var numQ=surveyState.qIds.length;
 
+  if(step.phase==='question'){
+    var qi=step.qi;
+    var pi=step.pi;
+    if(pi>0){
+      surveyState.step={phase:'question',qi:qi,pi:pi-1};
+    } else if(qi>0){
+      surveyState.step={phase:'question',qi:qi-1,pi:n-1};
+    } else {
+      // İlk soru ilk kişi → son profil adımına dön
+      surveyState.step={phase:'profile',pi:n-1};
+    }
+  } else if(step.phase==='profile'){
+    var pi=step.pi;
+    if(pi>0) surveyState.step={phase:'profile',pi:pi-1};
+    else return; // Zaten ilk adım
+  }
+  renderSurveyStep();
+}
+
+function surveyPrev(){stepBackward();}
+function surveySkip(){stepForward();}
 function cancelSurvey(){surveyState=null;go('home');}
 
 function finishSurvey(){
-  var isMulti=surveyState.persons&&surveyState.persons.length>1;
+  var n=surveyState.persons.length;
   var savedIds=[];
-  if(isMulti){
-    // Save each person as a separate response
-    surveyState.persons.forEach(function(personLabel,pi){
-      var prof=surveyState.profiles[pi]||{note:personLabel,age:'',gender:'',nationality:''};
-      var resp={
-        id:'r_'+Date.now()+'_'+pi,
-        projectId:surveyState.projectId,
-        date:surveyState.date,
-        profile:prof,
-        answers:surveyState.answersPerPerson[pi]||{},
-        notes:surveyState.notesPerPerson[pi]||{},
-        qIds:surveyState.qIds,
-        groupId:surveyState.id, // link grouped responses
-        groupLabel:personLabel,
-        step:'done'
-      };
-      db.responses.push(resp);
-      savedIds.push(resp.id);
-    });
-  } else {
+  surveyState.persons.forEach(function(personLabel,pi){
+    var prof=surveyState.profiles[pi]||{note:personLabel,age:'',gender:'',nationality:''};
     var resp={
-      id:surveyState.id,
+      id:'r_'+Date.now()+'_'+pi,
       projectId:surveyState.projectId,
       date:surveyState.date,
-      profile:surveyState.profile,
-      answers:surveyState.answers,
-      notes:surveyState.notes||{},
+      profile:prof,
+      answers:surveyState.answersPerPerson[pi]||{},
+      notes:surveyState.notesPerPerson[pi]||{},
       qIds:surveyState.qIds,
+      groupId:n>1?surveyState.id:undefined,
+      groupLabel:n>1?personLabel:undefined,
       step:'done'
     };
     db.responses.push(resp);
     savedIds.push(resp.id);
-  }
+  });
   save();
   surveyState.step='done';
   surveyState.savedIds=savedIds;
   renderSurveyStep();
-  showToast('✓ '+(isMulti?surveyState.persons.length+' kişi kaydedildi':'Kaydedildi'));
+  showToast('✓ '+(n>1?n+' kişi kaydedildi':'Kaydedildi'));
 }
 
 function launchNewFromDone(){
@@ -1594,7 +1578,6 @@ function launchNewFromDone(){
   surveyState=null;
   openStartSurveyModal(pid);
 }
-
 // ================================================================
 // HISTORY
 // ================================================================
@@ -2011,22 +1994,6 @@ function dlFile(name,mime,content){
   }catch(e){showToast('İndirme hatası: '+e.message);}
 }
 
-// ================================================================
-// QR
-// ================================================================
-function openQRModal(projId){
-  var link=window.location.href.split('?')[0]+'?proj='+projId;
-  var c=document.getElementById('qr-content');
-  c.innerHTML='<div id="qr-wrap"></div>'
-    +'<div class="ig"><label class="il">Anket Linki</label>'
-    +'<div style="display:flex;gap:8px">'
-    +'<input class="inp" id="qr-link" value="'+esc(link)+'" readonly style="flex:1">'
-    +'<button class="btn btn-s btn-sm" style="width:auto;padding:0 14px" onclick="copyEl(\'qr-link\')">Kopyala</button>'
-    +'</div></div>'
-    +'<div style="font-size:12px;color:var(--text3);line-height:1.6">💡 QR kodu ekran görüntüsü alarak paylaşabilirsiniz.</div>';
-  openM('qr');
-  makeQR(document.getElementById('qr-wrap'),link);
-}
 
 // ================================================================
 // DELETE CONFIRM
