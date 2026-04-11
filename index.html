@@ -464,13 +464,14 @@ html,body{width:375px;overflow-x:hidden}
 
   <nav class="nav" id="main-nav">
     <div class="nv on" id="nv-home" onclick="go('home')"><span class="ni">🏠</span><span class="nl" id="nl-home">Ana Sayfa</span></div>
-    <div class="nv" id="nv-history" onclick="go('history')"><span class="ni">📋</span><span class="nl" id="nl-history">Cevaplar</span></div>
-    <div class="nv" id="nv-stats" onclick="go('stats')"><span class="ni">📊</span><span class="nl" id="nl-stats">İstatistik</span></div>
     <div class="nv" id="nv-projects" onclick="go('projects')"><span class="ni">📁</span><span class="nl" id="nl-projects">Projeler</span></div>
+    <div class="nv" id="nv-stats" onclick="go('stats')"><span class="ni">📊</span><span class="nl" id="nl-stats">İstatistik</span></div>
+    <div class="nv" id="nv-history" onclick="go('history')"><span class="ni">📋</span><span class="nl" id="nl-history">Cevaplar</span></div>
     <div class="nv" id="nv-settings" onclick="go('settings')"><span class="ni">⚙️</span><span class="nl" id="nl-settings">Ayarlar</span></div>
   </nav>
 
   <!-- MODALS -->
+  <div class="modal-ov" id="m-home-start" onclick="cm('home-start')"><div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;"><div class="modal-handle"></div><div class="modal-title">&#9654; Anket Ba&#351;lat</div><div class="modal-sub">Hangi proje i&#231;in anket yapacaks&#305;n?</div><div id="m-home-start-list"></div><button class="btn btn-g" onclick="cm('home-start')" style="margin-top:4px">&#304;ptal</button></div></div>
   <div class="modal-ov" id="m-project" onclick="cm('project')">
     <div class="modal-sh" onclick="event.stopPropagation()" style="padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px) !important;">
       <div class="modal-handle"></div>
@@ -856,20 +857,35 @@ function renderHome(){
   var moreBtn=remaining>0
     ?'<button class="btn btn-g" style="margin-top:6px" onclick="homeShownCount+=5;renderHome()">'+T('5 Tane Daha Göster','Show 5 More')+' ('+remaining+' '+T('kaldı','left')+')</button>'
     :(homeShownCount>3?'<button class="btn btn-g" style="margin-top:6px" onclick="homeShownCount=3;renderHome()">'+T('Daha Az Göster','Show Less')+'</button>':'');
+  var acceptedCount=db.responses.filter(function(r){return r.step==='done'&&!(r.profile&&(r.profile.note||'').includes('(Reddetti)'))}).length;
+  var rejectedCount=db.responses.filter(function(r){return r.profile&&(r.profile.note||'').includes('(Reddetti)')}).length;
   document.getElementById('sc-home').innerHTML='<div class="pad">'
-    +'<div class="hero"><div class="hero-eyebrow">fieldwork · '+T('saha araştırması','field research')+'</div>'
-    +'<div class="hero-title">'+T('Her soru<br>bir keşif.','Every question<br>a discovery.')+'</div>'
-    +'<div class="hero-sub">'+T('Projeler oluştur, sorular tanımla, sahada veri topla.','Create projects, define questions, collect field data.')+'</div>'
-    +'<button class="btn btn-p" onclick="go(\'projects\')">📁 '+T('Projelere Git','Go to Projects')+'</button></div>'
-    +'<div class="stats-mini">'
+    +'<button class="btn btn-p" style="margin-bottom:14px" onclick="openHomeStartModal()">▶ '+T('Anket Başlat','Start Survey')+'</button>'
+    +'<div class="stats-mini" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">'
     +'<div class="stat-mini-box"><div class="stat-mini-n">'+db.projects.length+'</div><div class="stat-mini-l">'+T('Proje','Projects')+'</div></div>'
-    +'<div class="stat-mini-box"><div class="stat-mini-n">'+total+'</div><div class="stat-mini-l">'+T('Cevap','Responses')+'</div></div>'
-    +'<div class="stat-mini-box"><div class="stat-mini-n">'+today+'</div><div class="stat-mini-l">'+T('Bugün','Today')+'</div></div>'
+    +'<div class="stat-mini-box"><div class="stat-mini-n">'+total+'</div><div class="stat-mini-l">'+T('Toplam Anket','Total Surveys')+'</div></div>'
+    +'<div class="stat-mini-box" style="background:var(--accent-dim);border-color:var(--accent)"><div class="stat-mini-n" style="color:var(--accent)">'+acceptedCount+'</div><div class="stat-mini-l">'+T('Kabul','Accepted')+'</div></div>'
+    +'<div class="stat-mini-box" style="background:var(--red-dim);border-color:rgba(248,113,113,.3)"><div class="stat-mini-n" style="color:var(--red)">'+rejectedCount+'</div><div class="stat-mini-l">'+T('Red','Rejected')+'</div></div>'
     +'</div>'
     +(total>0?'<div class="sec-title" style="margin-bottom:10px">'+T('Son Anketler','Recent Surveys')+'</div>'+recentHtml+moreBtn:'')
     +'<div class="divl"></div>'
     +'<button class="btn btn-g" onclick="openM(\'import\')" style="margin-top:4px">📥 '+T('Eski Uygulamadan Veri Aktar','Import from Old App')+'</button>'
     +'</div>';
+}
+
+function openHomeStartModal(){
+  if(db.projects.length===0){showToast(T('Önce proje oluşturun','Create a project first'));go('projects');return;}
+  var listHtml=db.projects.map(function(p){
+    return '<div onclick="openStartSurveyModal(\''+safeId(p.id)+'\');cm(\'home-start\')" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px;cursor:pointer;min-height:52px">'
+      +'<span style="font-size:22px">'+esc(p.emoji||'📋')+'</span>'
+      +'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px">'+esc(p.name)+'</div>'
+      +(p.desc?'<div style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.desc)+'</div>':'')
+      +'</div>'
+      +'<span style="color:var(--accent);font-size:18px">→</span>'
+      +'</div>';
+  }).join('');
+  document.getElementById('m-home-start-list').innerHTML=listHtml;
+  openM('home-start');
 }
 
 function respCardHTML(r){
@@ -1602,14 +1618,32 @@ function renderHistory(){
     +'<div class="sec-title">Cevaplar</div>'
     +'<div class="sec-sub">'+db.responses.length+' toplam kayıt</div>'
     +'<div class="ig" style="margin-bottom:10px">'
-    +'<input class="inp" id="hist-search" type="search" placeholder="Ara..." value="'+esc(sv)+'" oninput="histSearch=this.value;renderHistory()" autocomplete="off">'
+    +'<input class="inp" id="hist-search" type="search" placeholder="Ara..." value="'+esc(sv)+'" oninput="histSearchUpdate(this.value)" autocomplete="off">'
     +'</div>'
     +'<div class="frow">'+chips.map(function(c){return'<div class="fchip'+(histFilter===c.id?' on':'')+'" onclick="setHistFilter(\''+safeId(c.id)+'\')">'+esc(c.name)+'</div>'}).join('')+'</div>'
-    +(resp.length===0?'<div class="empty"><div class="empty-ico">🔍</div><div class="empty-t">Sonuç yok</div></div>':cards)
+    +'<div id="hist-list">'+(resp.length===0?'<div class="empty"><div class="empty-ico">🔍</div><div class="empty-t">Sonuç yok</div></div>':cards)+'</div>'
     +'</div>';
 }
 
 function setHistFilter(f){histFilter=f;renderHistory();}
+
+function histSearchUpdate(val){
+  histSearch=val;
+  // Sadece liste kısmını güncelle, input'u yeniden render etme
+  var resp=db.responses.slice().reverse();
+  if(histFilter!=='all') resp=resp.filter(function(r){return r.projectId===histFilter});
+  if(histSearch){
+    var s=histSearch.toLowerCase();
+    resp=resp.filter(function(r){
+      var prof=r.profile||{};
+      var ansTxt=Object.values(r.answers||{}).join(' ');
+      return ((prof.note||'')+(prof.nationality||'')+ansTxt).toLowerCase().indexOf(s)>-1;
+    });
+  }
+  var cards=resp.map(function(r){return respCardHTML(r)}).join('');
+  var listEl=document.getElementById('hist-list');
+  if(listEl) listEl.innerHTML=resp.length===0?'<div class="empty"><div class="empty-ico">🔍</div><div class="empty-t">Sonuç yok</div></div>':cards;
+}
 
 // ================================================================
 // RESPONSE DETAIL
@@ -1640,6 +1674,7 @@ function renderRespDetail(id,editing){
     var cat=proj.categories?proj.categories.find(function(c){return c.id===q.catId}):null;
     var qclr=cat&&cat.color?cat.color:clr;
     var av=resp.answers?resp.answers[qid]:null;
+    var nv=resp.notes?resp.notes[qid]:null;
     var ansDisplay='';
     if(editing){
       if(q.type==='text'){
@@ -1650,12 +1685,15 @@ function renderRespDetail(id,editing){
         var optsHtml=(q.options||[]).map(function(opt){
           return '<div class="mcq-opt'+(av===opt?' sel':'')+'" style="margin-bottom:6px;font-size:14px" onclick="this.closest(\'[data-qid]\').querySelectorAll(\'.mcq-opt\').forEach(function(o){o.classList.remove(\'sel\')});this.classList.add(\'sel\')" data-opt="'+esc(opt)+'">'+esc(opt)+'</div>';
         }).join('');
-        ansDisplay='<div class="dq-a" data-qid="'+safeId(qid)+'">'+optsHtml+'</div>';
+        ansDisplay='<div class="dq-a" data-qid="'+safeId(qid)+'">'+optsHtml+'</div>'
+          +'<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">📝 Açık Uçlu Cevap</div>'
+          +'<textarea class="inp" data-note-qid="'+safeId(qid)+'" style="min-height:60px;font-size:16px;line-height:1.5" placeholder="Açık uçlu cevap...">'+esc(nv||'')+'</textarea></div>';
       }
     } else {
       var displayVal=av;
       if(q.type==='rating'&&av) displayVal='★'.repeat(av)+'☆'.repeat(5-av)+' ('+av+'/5)';
-      ansDisplay='<div class="dq-a'+(displayVal?'':' empty')+'">'+esc(displayVal?String(displayVal):'Cevap verilmedi')+'</div>';
+      var noteDisplay=nv?'<div style="margin-top:6px;font-size:13px;color:var(--text2);background:var(--s2);padding:10px 12px;border-radius:var(--r-sm);border-left:2px solid var(--accent2);line-height:1.5">📝 '+esc(nv)+'</div>':'';
+      ansDisplay='<div class="dq-a'+(displayVal?'':' empty')+'">'+esc(displayVal?String(displayVal):'Cevap verilmedi')+'</div>'+noteDisplay;
     }
     return '<div class="dq">'
       +'<div class="dq-label" style="color:'+qclr+'">'+(cat?esc(cat.name)+' · ':'')+esc(QTL[q.type]||'')+'</div>'
@@ -1718,6 +1756,12 @@ function saveRespEdit(id){
     else if(q.type==='rating'&&el.tagName==='INPUT') db.responses[idx].answers[qid]=parseInt(el.value)||null;
     else if(q.type==='mcq'){var sel=el.querySelector('.mcq-opt.sel');if(sel) db.responses[idx].answers[qid]=sel.getAttribute('data-opt');}
   });
+  // MCQ/rating note alanlarını kaydet
+  if(!db.responses[idx].notes) db.responses[idx].notes={};
+  document.querySelectorAll('[data-note-qid]').forEach(function(el){
+    var qid=el.getAttribute('data-note-qid');
+    db.responses[idx].notes[qid]=el.value.trim()||null;
+  });
   save();renderRespDetail(id,false);showToast('✓ Kaydedildi');
 }
 
@@ -1773,11 +1817,11 @@ function renderStats(){
       (proj.questions||[]).filter(function(q){return q.type==='mcq'}).forEach(function(q){
         var om={};(q.options||[]).forEach(function(o){om[o]=0});
         resps.forEach(function(r){var a=r.answers&&r.answers[q.id];if(a&&om[a]!==undefined)om[a]++;});
-        var mv=Math.max.apply(null,Object.values(om).concat([1]));
+        var totalAns=Object.values(om).reduce(function(a,b){return a+b},0);
         qStatsHtml+='<div class="card" style="margin-bottom:12px">'
           +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;line-height:1.4">'+esc(q.text)+'</div>'
           +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Çoktan Seçmeli Dağılım</div>'
-          +Object.entries(om).map(function(e){return'<div class="stat-bar-row"><div class="sbl">'+esc(e[0])+'</div><div class="sbt"><div class="sbf" style="width:'+Math.round(e[1]/mv*100)+'%;background:var(--accent2)"></div></div><div class="sbc">'+e[1]+'</div></div>'}).join('')
+          +Object.entries(om).map(function(e){var pct=totalAns?Math.round(e[1]/totalAns*100):0;return'<div class="stat-bar-row"><div class="sbl">'+esc(e[0])+'</div><div class="sbt"><div class="sbf" style="width:'+pct+'%;background:var(--accent2)"></div></div><div class="sbc" style="width:36px">%'+pct+'</div></div>'}).join('')
           +'</div>';
       });
       // Rating breakdown
